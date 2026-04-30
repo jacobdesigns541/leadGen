@@ -28,10 +28,10 @@ services:
     buildCommand: npm install && npm run build
     startCommand: npm start
     envVars:
-      - key: BACKEND_URL
+      - key: VITE_API_URL
         fromService:
           type: web
           name: leadgen-la-backend
-          property: host
+          property: origin
       - key: NODE_ENV
         value: production

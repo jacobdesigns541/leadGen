@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { searchBusinesses } = require('../services/googlePlaces');
 const { scoreLead } = require('../services/scoringEngine');
-const { getCachedLeads, saveLead, rowToLead } = require('../db/database');
+const { getCachedLeads, saveLead, getCacheStats, rowToLead } = require('../db/database');
 
 // Build a deterministic cache key for a search
 function buildSearchKey(businessType, location, radiusMiles) {
@@ -73,11 +73,7 @@ router.post('/search', async (req, res) => {
 // GET /api/leads/cache-stats
 router.get('/cache-stats', (req, res) => {
   try {
-    const Database = require('better-sqlite3');
-    const path = require('path');
-    const db = new Database(path.join(__dirname, '../../leadgen.db'));
-    const stats = db.prepare('SELECT COUNT(*) as total, MAX(created_at) as last_updated FROM cached_leads').get();
-    res.json(stats);
+    res.json(getCacheStats());
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -16,8 +16,12 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-initDb();
-
-app.listen(PORT, () => {
-  console.log(`LeadGen LA backend running on port ${PORT}`);
+// Wait for the async sql.js init before accepting connections
+initDb().then(() => {
+  app.listen(PORT, () => {
+    console.log(`LeadGen LA backend running on port ${PORT}`);
+  });
+}).catch((err) => {
+  console.error('Failed to initialize database:', err);
+  process.exit(1);
 });

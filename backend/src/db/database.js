@@ -1,4 +1,5 @@
-const Database = require('better-sqlite3');
+const initSqlJs = require('sql.js');
+const fs = require('fs');
 const path = require('path');
 
 const DB_PATH = path.join(__dirname, '../leadgen.db');
@@ -6,17 +7,40 @@ const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 let db;
 
-function getDb() {
-  if (!db) {
-    db = new Database(DB_PATH);
-    db.pragma('journal_mode = WAL');
-  }
-  return db;
+function persistDb() {
+  const data = db.export();
+  fs.writeFileSync(DB_PATH, Buffer.from(data));
 }
 
-function initDb() {
-  const database = getDb();
-  database.exec(`
+// Run a SELECT and return all rows as plain objects
+function queryAll(sql, params = []) {
+  const stmt = db.prepare(sql);
+  stmt.bind(params);
+  const rows = [];
+  while (stmt.step()) rows.push(stmt.getAsObject());
+  stmt.free();
+  return rows;
+}
+
+// Run a SELECT and return the first row, or null
+function queryOne(sql, params = []) {
+  const stmt = db.prepare(sql);
+  stmt.bind(params);
+  const row = stmt.step() ? stmt.getAsObject() : null;
+  stmt.free();
+  return row;
+}
+
+async function initDb() {
+  const SQL = await initSqlJs();
+
+  if (fs.existsSync(DB_PATH)) {
+    db = new SQL.Database(fs.readFileSync(DB_PATH));
+  } else {
+    db = new SQL.Database();
+  }
+
+  db.run(`
     CREATE TABLE IF NOT EXISTS cached_leads (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       place_id TEXT NOT NULL,
@@ -50,26 +74,27 @@ function initDb() {
     CREATE INDEX IF NOT EXISTS idx_place_id ON cached_leads(place_id);
     CREATE INDEX IF NOT EXISTS idx_search_key ON cached_leads(search_key);
   `);
+
+  persistDb();
   console.log('Database initialized at', DB_PATH);
 }
 
 function getCachedLeads(searchKey) {
-  const database = getDb();
   const cutoff = Date.now() - CACHE_TTL_MS;
-  const rows = database.prepare(
-    'SELECT * FROM cached_leads WHERE search_key = ? AND created_at > ?'
-  ).all(searchKey, cutoff);
-  return rows;
+  return queryAll(
+    'SELECT * FROM cached_leads WHERE search_key = ? AND created_at > ?',
+    [searchKey, cutoff]
+  );
 }
 
 function saveLead(searchKey, lead) {
-  const database = getDb();
-  const existing = database.prepare(
-    'SELECT id FROM cached_leads WHERE place_id = ? AND search_key = ?'
-  ).get(lead.placeId, searchKey);
+  const existing = queryOne(
+    'SELECT id FROM cached_leads WHERE place_id = ? AND search_key = ?',
+    [lead.placeId, searchKey]
+  );
 
   if (existing) {
-    database.prepare(`
+    db.run(`
       UPDATE cached_leads SET
         business_name=?, category=?, address=?, phone=?, website=?, rating=?, review_count=?,
         latitude=?, longitude=?, zip_code=?, is_hispanic_zip=?,
@@ -77,7 +102,7 @@ function saveLead(searchKey, lead) {
         score_digital_ads=?, score_competitor_ads=?, score_website=?, score_reviews=?, score_social=?,
         score_composite=?, no_google_ads=?, no_meta_ads=?, pitch_note=?, raw_data=?, created_at=?
       WHERE place_id=? AND search_key=?
-    `).run(
+    `, [
       lead.businessName, lead.category, lead.address, lead.phone, lead.website,
       lead.rating, lead.reviewCount, lead.latitude, lead.longitude,
       lead.zipCode, lead.isHispanicZip ? 1 : 0,
@@ -86,17 +111,17 @@ function saveLead(searchKey, lead) {
       lead.scores.reviews, lead.scores.social, lead.scores.composite,
       lead.noGoogleAds ? 1 : 0, lead.noMetaAds ? 1 : 0,
       lead.pitchNote, JSON.stringify(lead.rawData), Date.now(),
-      lead.placeId, searchKey
-    );
+      lead.placeId, searchKey,
+    ]);
   } else {
-    database.prepare(`
+    db.run(`
       INSERT INTO cached_leads
         (place_id, search_key, business_name, category, address, phone, website, rating, review_count,
          latitude, longitude, zip_code, is_hispanic_zip, owner_name, owner_title, owner_email,
          score_digital_ads, score_competitor_ads, score_website, score_reviews, score_social,
          score_composite, no_google_ads, no_meta_ads, pitch_note, raw_data, created_at)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-    `).run(
+    `, [
       lead.placeId, searchKey, lead.businessName, lead.category, lead.address,
       lead.phone, lead.website, lead.rating, lead.reviewCount,
       lead.latitude, lead.longitude, lead.zipCode, lead.isHispanicZip ? 1 : 0,
@@ -104,9 +129,15 @@ function saveLead(searchKey, lead) {
       lead.scores.digitalAds, lead.scores.competitorAds, lead.scores.website,
       lead.scores.reviews, lead.scores.social, lead.scores.composite,
       lead.noGoogleAds ? 1 : 0, lead.noMetaAds ? 1 : 0,
-      lead.pitchNote, JSON.stringify(lead.rawData), Date.now()
-    );
+      lead.pitchNote, JSON.stringify(lead.rawData), Date.now(),
+    ]);
   }
+
+  persistDb();
+}
+
+function getCacheStats() {
+  return queryOne('SELECT COUNT(*) as total, MAX(created_at) as last_updated FROM cached_leads');
 }
 
 function rowToLead(row) {
@@ -142,4 +173,4 @@ function rowToLead(row) {
   };
 }
 
-module.exports = { initDb, getCachedLeads, saveLead, rowToLead };
+module.exports = { initDb, getCachedLeads, saveLead, getCacheStats, rowToLead };

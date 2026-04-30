@@ -17,10 +17,6 @@ services:
         sync: false
       - key: NODE_ENV
         value: production
-    disk:
-      name: leadgen-db
-      mountPath: /opt/render/project/src/backend
-      sizeGB: 1
 
   # Frontend web service — Express serves the built React app
   - type: web

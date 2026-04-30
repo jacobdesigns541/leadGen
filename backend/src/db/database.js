@@ -1,7 +1,7 @@
 const Database = require('better-sqlite3');
 const path = require('path');
 
-const DB_PATH = path.join(__dirname, '../../leadgen.db');
+const DB_PATH = path.join(__dirname, '../leadgen.db');
 const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 let db;

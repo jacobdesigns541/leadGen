@@ -1,6 +1,10 @@
-const { checkBusinessAdPresence, checkCompetitorAdPresence, checkSocialMediaPresence } = require('./serpApi');
+const { checkBusinessAdPresence, checkSocialMediaPresence } = require('./serpApi');
 const { checkWebsiteQuality } = require('./websiteChecker');
+const { checkTvPresence, checkRadioPresence } = require('./fccApi');
 const { enrichBusinessContact } = require('./apolloApi');
+
+// Scoring weights (must sum to 100)
+// digitalAds: 20 | tv: 20 | radio: 20 | website: 20 | reviews: 10 | social: 10
 
 const HISPANIC_ZIPS = new Set([
   '90022', '90023', '90033', '90063', '90255', '90270', '90280', '90262',
@@ -14,25 +18,40 @@ function scoreTier(composite) {
   return 'low';
 }
 
+function scoreReviews(rating, reviewCount) {
+  // Max 10 pts
+  let score;
+  if (reviewCount >= 150 && rating >= 4.5) {
+    score = 9 + Math.floor(Math.random() * 2);   // 9-10
+  } else if (reviewCount >= 50) {
+    score = 6 + Math.floor(Math.random() * 3);   // 6-8
+  } else if (reviewCount >= 10) {
+    score = 3 + Math.floor(Math.random() * 3);   // 3-5
+  } else {
+    score = Math.floor(Math.random() * 3);        // 0-2
+  }
+  if (rating > 0 && rating < 3.5) score = Math.max(0, score - 1);
+  return score;
+}
+
 function generatePitchNote(businessName, scores, isHispanicZip) {
   const weaknesses = [];
 
-  if (scores.digitalAds <= 5) weaknesses.push('no Google Ads presence');
-  else if (scores.digitalAds <= 15) weaknesses.push('limited paid search visibility');
+  if (scores.digitalAds <= 3)  weaknesses.push('no paid search presence');
+  else if (scores.digitalAds <= 10) weaknesses.push('limited Google Ads visibility');
 
-  if (scores.website <= 5) weaknesses.push('no website or weak web presence');
-  else if (scores.website <= 10) weaknesses.push('outdated website lacking tracking');
+  if (scores.tv <= 3)          weaknesses.push('no TV advertising detected');
+  if (scores.radio <= 3)       weaknesses.push('no radio advertising detected');
 
-  if (scores.social <= 2) weaknesses.push('no detectable social media activity');
-  else if (scores.social <= 5) weaknesses.push('sparse social media presence');
+  if (scores.website <= 5)     weaknesses.push('no website or very weak web presence');
+  else if (scores.website <= 10) weaknesses.push('outdated website lacking tracking pixels');
 
-  if (scores.reviews <= 3) weaknesses.push('very few online reviews');
-  else if (scores.reviews <= 7) weaknesses.push('limited review count');
+  if (scores.social <= 2)      weaknesses.push('no detectable social media activity');
 
-  if (scores.competitorAds <= 5) weaknesses.push('competitors actively running ads in this space');
+  if (scores.reviews <= 2)     weaknesses.push('very few online reviews');
 
   if (weaknesses.length === 0) {
-    return `${businessName} appears to have strong digital presence — focus pitch on growth and ROI optimization.`;
+    return `${businessName} has strong digital and broadcast presence — pitch on growth and ROI optimization.`;
   }
 
   const topWeakness = weaknesses.slice(0, 2).join(' and ');
@@ -40,37 +59,17 @@ function generatePitchNote(businessName, scores, isHispanicZip) {
     ? ' Located in a high-density Hispanic market area — ideal for Spanish-language campaigns.'
     : '';
 
-  return `${businessName} shows ${topWeakness}.${hispanicNote} Strong candidate for a full digital marketing package.`;
-}
-
-function scoreReviews(rating, reviewCount) {
-  let score = 0;
-
-  if (reviewCount >= 150 && rating >= 4.5) {
-    score = 13 + Math.floor(Math.random() * 3); // 13-15
-  } else if (reviewCount >= 50) {
-    score = 8 + Math.floor(Math.random() * 5); // 8-12
-  } else if (reviewCount >= 10) {
-    score = 4 + Math.floor(Math.random() * 4); // 4-7
-  } else {
-    score = Math.floor(Math.random() * 4); // 0-3
-  }
-
-  if (rating > 0 && rating < 3.5) score = Math.max(0, score - 2);
-
-  return score;
+  return `${businessName} shows ${topWeakness}.${hispanicNote} Strong candidate for a full digital + broadcast package.`;
 }
 
 async function scoreLead(business) {
   const { businessName, category, address, website, rating, reviewCount, zipCode } = business;
-
-  // Extract city from address
   const city = extractCity(address) || 'Los Angeles';
 
-  // Run all scoring checks in parallel
-  const [adResult, competitorResult, websiteResult, socialResult, contactResult] = await Promise.all([
+  const [adResult, tvResult, radioResult, websiteResult, socialResult, contactResult] = await Promise.all([
     checkBusinessAdPresence(businessName, category, city),
-    checkCompetitorAdPresence(category, city),
+    checkTvPresence(businessName),
+    checkRadioPresence(businessName),
     checkWebsiteQuality(website),
     checkSocialMediaPresence(businessName),
     enrichBusinessContact(website, businessName),
@@ -80,25 +79,20 @@ async function scoreLead(business) {
   const isHispanicZip = HISPANIC_ZIPS.has(zipCode);
 
   const scores = {
-    digitalAds: adResult.score,
-    competitorAds: competitorResult.score,
-    website: websiteResult.score,
-    reviews: reviewScore,
-    social: socialResult.score,
+    digitalAds: adResult.score,    // 0-20
+    tv:         tvResult.score,    // 0-20
+    radio:      radioResult.score, // 0-20
+    website:    websiteResult.score, // 0-20
+    reviews:    reviewScore,         // 0-10
+    social:     socialResult.score,  // 0-10
   };
 
   let composite =
-    scores.digitalAds +
-    scores.competitorAds +
-    scores.website +
-    scores.reviews +
-    scores.social;
+    scores.digitalAds + scores.tv + scores.radio +
+    scores.website + scores.reviews + scores.social;
 
   if (isHispanicZip) composite = Math.max(0, composite - 5);
-
   scores.composite = composite;
-
-  const pitchNote = generatePitchNote(businessName, scores, isHispanicZip);
 
   return {
     ...business,
@@ -110,24 +104,17 @@ async function scoreLead(business) {
     tier: scoreTier(composite),
     noGoogleAds: !adResult.hasGoogleAds,
     noMetaAds: !websiteResult.hasFBPixel,
-    pitchNote,
-    rawData: {
-      adResult,
-      competitorResult,
-      websiteResult,
-      socialResult,
-    },
+    noTvAds: tvResult.stationsFound === 0,
+    noRadioAds: radioResult.stationsFound === 0,
+    pitchNote: generatePitchNote(businessName, scores, isHispanicZip),
+    rawData: { adResult, tvResult, radioResult, websiteResult, socialResult },
   };
 }
 
 function extractCity(address) {
   if (!address) return 'Los Angeles';
-  // Format: "123 Main St, Los Angeles, CA 90001, USA"
   const parts = address.split(',');
-  if (parts.length >= 2) {
-    return parts[1].trim();
-  }
-  return 'Los Angeles';
+  return parts.length >= 2 ? parts[1].trim() : 'Los Angeles';
 }
 
 module.exports = { scoreLead, scoreTier, HISPANIC_ZIPS };

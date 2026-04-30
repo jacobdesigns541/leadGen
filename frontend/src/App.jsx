@@ -61,14 +61,17 @@ export default function App() {
     if (activeFilters.includes('noMetaAds')) {
       result = result.filter((l) => l.noMetaAds);
     }
+    if (activeFilters.includes('noTvAds')) {
+      result = result.filter((l) => l.noTvAds);
+    }
+    if (activeFilters.includes('noRadioAds')) {
+      result = result.filter((l) => l.noRadioAds);
+    }
     if (activeFilters.includes('weakWebsite')) {
       result = result.filter((l) => (l.scores?.website ?? 0) <= 8);
     }
     if (activeFilters.includes('under50Reviews')) {
       result = result.filter((l) => (l.reviewCount ?? 0) < 50);
-    }
-    if (activeFilters.includes('competitorsAds')) {
-      result = result.filter((l) => (l.scores?.competitorAds ?? 25) <= 10);
     }
     if (activeFilters.includes('hotOnly')) {
       result = result.filter((l) => l.tier === 'hot');
@@ -80,13 +83,15 @@ export default function App() {
         case 'composite':
           return (a.scores?.composite ?? 100) - (b.scores?.composite ?? 100);
         case 'digitalAds':
-          return (a.scores?.digitalAds ?? 30) - (b.scores?.digitalAds ?? 30);
+          return (a.scores?.digitalAds ?? 20) - (b.scores?.digitalAds ?? 20);
+        case 'tv':
+          return (a.scores?.tv ?? 20) - (b.scores?.tv ?? 20);
+        case 'radio':
+          return (a.scores?.radio ?? 20) - (b.scores?.radio ?? 20);
         case 'website':
           return (a.scores?.website ?? 20) - (b.scores?.website ?? 20);
         case 'reviews':
-          return (a.scores?.reviews ?? 15) - (b.scores?.reviews ?? 15);
-        case 'competitorAds':
-          return (a.scores?.competitorAds ?? 25) - (b.scores?.competitorAds ?? 25);
+          return (a.scores?.reviews ?? 10) - (b.scores?.reviews ?? 10);
         default:
           return 0;
       }

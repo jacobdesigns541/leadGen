@@ -8,9 +8,10 @@ export default function SummaryBar({ leads, sortOrder, onSortChange, fromCache }
   const sortButtons = [
     { key: 'composite', label: 'Composite' },
     { key: 'digitalAds', label: 'Digital Ads' },
-    { key: 'website', label: 'Website' },
-    { key: 'reviews', label: 'Reviews' },
-    { key: 'competitorAds', label: 'Competitors' },
+    { key: 'tv',         label: 'TV' },
+    { key: 'radio',      label: 'Radio' },
+    { key: 'website',    label: 'Website' },
+    { key: 'reviews',    label: 'Reviews' },
   ];
 
   return (

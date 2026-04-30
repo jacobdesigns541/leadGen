@@ -12,7 +12,6 @@ function persistDb() {
   fs.writeFileSync(DB_PATH, Buffer.from(data));
 }
 
-// Run a SELECT and return all rows as plain objects
 function queryAll(sql, params = []) {
   const stmt = db.prepare(sql);
   stmt.bind(params);
@@ -22,7 +21,6 @@ function queryAll(sql, params = []) {
   return rows;
 }
 
-// Run a SELECT and return the first row, or null
 function queryOne(sql, params = []) {
   const stmt = db.prepare(sql);
   stmt.bind(params);
@@ -60,13 +58,16 @@ async function initDb() {
       owner_title TEXT,
       owner_email TEXT,
       score_digital_ads INTEGER DEFAULT 0,
-      score_competitor_ads INTEGER DEFAULT 0,
+      score_tv INTEGER DEFAULT 0,
+      score_radio INTEGER DEFAULT 0,
       score_website INTEGER DEFAULT 0,
       score_reviews INTEGER DEFAULT 0,
       score_social INTEGER DEFAULT 0,
       score_composite INTEGER DEFAULT 0,
       no_google_ads INTEGER DEFAULT 0,
       no_meta_ads INTEGER DEFAULT 0,
+      no_tv_ads INTEGER DEFAULT 0,
+      no_radio_ads INTEGER DEFAULT 0,
       pitch_note TEXT,
       raw_data TEXT,
       created_at INTEGER NOT NULL
@@ -93,44 +94,40 @@ function saveLead(searchKey, lead) {
     [lead.placeId, searchKey]
   );
 
+  const vals = [
+    lead.businessName, lead.category, lead.address, lead.phone, lead.website,
+    lead.rating, lead.reviewCount, lead.latitude, lead.longitude,
+    lead.zipCode, lead.isHispanicZip ? 1 : 0,
+    lead.ownerName, lead.ownerTitle, lead.ownerEmail,
+    lead.scores.digitalAds, lead.scores.tv, lead.scores.radio,
+    lead.scores.website, lead.scores.reviews, lead.scores.social, lead.scores.composite,
+    lead.noGoogleAds ? 1 : 0, lead.noMetaAds ? 1 : 0,
+    lead.noTvAds ? 1 : 0, lead.noRadioAds ? 1 : 0,
+    lead.pitchNote, JSON.stringify(lead.rawData), Date.now(),
+  ];
+
   if (existing) {
     db.run(`
       UPDATE cached_leads SET
         business_name=?, category=?, address=?, phone=?, website=?, rating=?, review_count=?,
         latitude=?, longitude=?, zip_code=?, is_hispanic_zip=?,
         owner_name=?, owner_title=?, owner_email=?,
-        score_digital_ads=?, score_competitor_ads=?, score_website=?, score_reviews=?, score_social=?,
-        score_composite=?, no_google_ads=?, no_meta_ads=?, pitch_note=?, raw_data=?, created_at=?
+        score_digital_ads=?, score_tv=?, score_radio=?,
+        score_website=?, score_reviews=?, score_social=?, score_composite=?,
+        no_google_ads=?, no_meta_ads=?, no_tv_ads=?, no_radio_ads=?,
+        pitch_note=?, raw_data=?, created_at=?
       WHERE place_id=? AND search_key=?
-    `, [
-      lead.businessName, lead.category, lead.address, lead.phone, lead.website,
-      lead.rating, lead.reviewCount, lead.latitude, lead.longitude,
-      lead.zipCode, lead.isHispanicZip ? 1 : 0,
-      lead.ownerName, lead.ownerTitle, lead.ownerEmail,
-      lead.scores.digitalAds, lead.scores.competitorAds, lead.scores.website,
-      lead.scores.reviews, lead.scores.social, lead.scores.composite,
-      lead.noGoogleAds ? 1 : 0, lead.noMetaAds ? 1 : 0,
-      lead.pitchNote, JSON.stringify(lead.rawData), Date.now(),
-      lead.placeId, searchKey,
-    ]);
+    `, [...vals, lead.placeId, searchKey]);
   } else {
     db.run(`
       INSERT INTO cached_leads
         (place_id, search_key, business_name, category, address, phone, website, rating, review_count,
          latitude, longitude, zip_code, is_hispanic_zip, owner_name, owner_title, owner_email,
-         score_digital_ads, score_competitor_ads, score_website, score_reviews, score_social,
-         score_composite, no_google_ads, no_meta_ads, pitch_note, raw_data, created_at)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-    `, [
-      lead.placeId, searchKey, lead.businessName, lead.category, lead.address,
-      lead.phone, lead.website, lead.rating, lead.reviewCount,
-      lead.latitude, lead.longitude, lead.zipCode, lead.isHispanicZip ? 1 : 0,
-      lead.ownerName, lead.ownerTitle, lead.ownerEmail,
-      lead.scores.digitalAds, lead.scores.competitorAds, lead.scores.website,
-      lead.scores.reviews, lead.scores.social, lead.scores.composite,
-      lead.noGoogleAds ? 1 : 0, lead.noMetaAds ? 1 : 0,
-      lead.pitchNote, JSON.stringify(lead.rawData), Date.now(),
-    ]);
+         score_digital_ads, score_tv, score_radio, score_website, score_reviews, score_social,
+         score_composite, no_google_ads, no_meta_ads, no_tv_ads, no_radio_ads,
+         pitch_note, raw_data, created_at)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    `, [lead.placeId, searchKey, ...vals]);
   }
 
   persistDb();
@@ -159,17 +156,20 @@ function rowToLead(row) {
     ownerEmail: row.owner_email,
     scores: {
       digitalAds: row.score_digital_ads,
-      competitorAds: row.score_competitor_ads,
-      website: row.score_website,
-      reviews: row.score_reviews,
-      social: row.score_social,
-      composite: row.score_composite,
+      tv:         row.score_tv,
+      radio:      row.score_radio,
+      website:    row.score_website,
+      reviews:    row.score_reviews,
+      social:     row.score_social,
+      composite:  row.score_composite,
     },
-    noGoogleAds: row.no_google_ads === 1,
-    noMetaAds: row.no_meta_ads === 1,
-    pitchNote: row.pitch_note,
-    rawData: row.raw_data ? JSON.parse(row.raw_data) : {},
-    cachedAt: row.created_at,
+    noGoogleAds:  row.no_google_ads === 1,
+    noMetaAds:    row.no_meta_ads === 1,
+    noTvAds:      row.no_tv_ads === 1,
+    noRadioAds:   row.no_radio_ads === 1,
+    pitchNote:    row.pitch_note,
+    rawData:      row.raw_data ? JSON.parse(row.raw_data) : {},
+    cachedAt:     row.created_at,
   };
 }
 

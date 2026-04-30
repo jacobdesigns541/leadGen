@@ -40,7 +40,7 @@ export function getScoreTier(composite) {
   return 'low';
 }
 
-// Returns color for a metric bar (low score = opportunity = green)
+// Returns bar color: low score = opportunity = green
 export function getMetricBarColor(score, maxScore) {
   const pct = score / maxScore;
   if (pct <= 0.35) return 'var(--color-hot)';
@@ -49,9 +49,10 @@ export function getMetricBarColor(score, maxScore) {
 }
 
 export const METRIC_DEFINITIONS = [
-  { key: 'digitalAds', label: 'Digital Ad Presence', maxScore: 30 },
-  { key: 'competitorAds', label: 'Competitor Ads', maxScore: 25 },
-  { key: 'website', label: 'Website Quality', maxScore: 20 },
-  { key: 'reviews', label: 'Reviews', maxScore: 15 },
-  { key: 'social', label: 'Social Media', maxScore: 10 },
+  { key: 'digitalAds', label: 'Digital Ad Presence', maxScore: 20 },
+  { key: 'tv',         label: 'TV Presence',          maxScore: 20 },
+  { key: 'radio',      label: 'Radio Presence',       maxScore: 20 },
+  { key: 'website',    label: 'Website Quality',      maxScore: 20 },
+  { key: 'reviews',    label: 'Reviews',              maxScore: 10 },
+  { key: 'social',     label: 'Social Media',         maxScore: 10 },
 ];

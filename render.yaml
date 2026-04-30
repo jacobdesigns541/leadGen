@@ -1,0 +1,43 @@
+services:
+  # Backend API service
+  - type: web
+    name: leadgen-la-backend
+    env: node
+    region: oregon
+    plan: free
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: GOOGLE_PLACES_API_KEY
+        sync: false
+      - key: SERP_API_KEY
+        sync: false
+      - key: APOLLO_API_KEY
+        sync: false
+      - key: NODE_ENV
+        value: production
+    disk:
+      name: leadgen-db
+      mountPath: /opt/render/project/src/backend
+      sizeGB: 1
+
+  # Frontend static site
+  - type: static
+    name: leadgen-la-frontend
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./dist
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          type: web
+          name: leadgen-la-backend
+          property: host
+    routes:
+      - type: rewrite
+        source: /api/*
+        destination: https://leadgen-la-backend.onrender.com/api/:splat
+      - type: rewrite
+        source: /*
+        destination: /index.html

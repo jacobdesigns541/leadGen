@@ -141,8 +141,8 @@ export default function LeadCard({ lead }) {
           )}
         </div>
 
-        {/* Contact block */}
-        {(ownerName || phone || ownerEmail) && (
+        {/* Contact block — always shown when there is at least a phone number */}
+        {(phone || ownerName || ownerEmail) && (
           <div style={{
             background: 'var(--color-surface-2)',
             borderRadius: 'var(--radius-md)',
@@ -151,32 +151,50 @@ export default function LeadCard({ lead }) {
             border: '1px solid var(--color-border)',
           }}>
             <div style={{ fontSize: '10px', fontWeight: '700', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '8px' }}>
-              Contact
+              Contact Info
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+
+              {/* Owner name + title (from Apollo) */}
               {ownerName && (
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                   <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--color-text)' }}>{ownerName}</span>
                   {ownerTitle && <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>· {ownerTitle}</span>}
                 </div>
               )}
+
+              {/* Phone — labeled with person name if known, otherwise 'General' */}
               {phone && (
-                <a href={`tel:${phone.replace(/\s/g, '')}`} style={{
-                  fontSize: '13px', color: 'var(--color-accent)',
-                  display: 'flex', alignItems: 'center', gap: '5px',
-                }}>
-                  📞 {phone}
-                </a>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ fontSize: '12px', color: 'var(--color-text-muted)', minWidth: '0', flexShrink: 0 }}>
+                    {ownerName ? `${ownerName.split(' ')[0]}:` : 'General:'}
+                  </span>
+                  <a
+                    href={`tel:${phone.replace(/[\s\-()]/g, '')}`}
+                    style={{ fontSize: '13px', color: 'var(--color-accent)', display: 'flex', alignItems: 'center', gap: '4px' }}
+                  >
+                    📞 {phone}
+                  </a>
+                </div>
               )}
-              {ownerEmail && (
-                <a href={`mailto:${ownerEmail}`} style={{
-                  fontSize: '12px', color: '#6ee7f7',
-                  display: 'flex', alignItems: 'center', gap: '5px',
-                  wordBreak: 'break-all',
-                }}>
-                  ✉ {ownerEmail}
-                </a>
-              )}
+
+              {/* Email — always shown; muted placeholder if not found */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '12px', color: 'var(--color-text-muted)', flexShrink: 0 }}>Email:</span>
+                {ownerEmail ? (
+                  <a
+                    href={`mailto:${ownerEmail}`}
+                    style={{ fontSize: '12px', color: '#6ee7f7', wordBreak: 'break-all' }}
+                  >
+                    ✉ {ownerEmail}
+                  </a>
+                ) : (
+                  <span style={{ fontSize: '12px', color: 'var(--color-text-dim)', fontStyle: 'italic' }}>
+                    Not found
+                  </span>
+                )}
+              </div>
+
             </div>
           </div>
         )}

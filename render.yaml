@@ -22,22 +22,20 @@ services:
       mountPath: /opt/render/project/src/backend
       sizeGB: 1
 
-  # Frontend static site
-  - type: static
+  # Frontend web service — Express serves the built React app
+  - type: web
     name: leadgen-la-frontend
+    env: node
+    region: oregon
+    plan: free
     rootDir: frontend
     buildCommand: npm install && npm run build
-    staticPublishPath: ./dist
+    startCommand: npm start
     envVars:
-      - key: VITE_API_URL
+      - key: BACKEND_URL
         fromService:
           type: web
           name: leadgen-la-backend
           property: host
-    routes:
-      - type: rewrite
-        source: /api/*
-        destination: https://leadgen-la-backend.onrender.com/api/:splat
-      - type: rewrite
-        source: /*
-        destination: /index.html
+      - key: NODE_ENV
+        value: production

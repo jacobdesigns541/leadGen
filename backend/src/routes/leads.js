@@ -4,21 +4,66 @@ const { searchBusinesses } = require('../services/googlePlaces');
 const { scoreLead } = require('../services/scoringEngine');
 const { getCachedLeads, saveLead, getCacheStats, rowToLead } = require('../db/database');
 
-// Build a deterministic cache key for a search
+const ALL_BUSINESS_TYPES = [
+  'Auto Dealership',
+  'Immigration Law',
+  'Family Law',
+  'Dental / Orthodontic',
+  'Tax / Accounting',
+  'Insurance Broker',
+  'Home Services / HVAC',
+  'Event Venue / Quinceañera',
+  'Restaurant Group',
+  'Real Estate',
+  'Notary Services',
+];
+
+const DEFAULT_LOCATION = '90012';
+
 function buildSearchKey(businessType, location, radiusMiles) {
   return `${businessType.toLowerCase().trim()}|${location.toLowerCase().trim()}|${radiusMiles}`;
+}
+
+async function fetchAndScoreCategory(businessType, location, radiusMiles, searchKey) {
+  const businesses = await searchBusinesses(businessType, location, radiusMiles);
+  if (!businesses || businesses.length === 0) return [];
+
+  const chunkSize = 5;
+  const scoredLeads = [];
+  for (let i = 0; i < businesses.length; i += chunkSize) {
+    const chunk = businesses.slice(i, i + chunkSize);
+    const results = await Promise.allSettled(
+      chunk.map((b) => scoreLead({ ...b, category: businessType }))
+    );
+    for (const result of results) {
+      if (result.status === 'fulfilled') {
+        scoredLeads.push(result.value);
+      } else {
+        console.error('Scoring error:', result.reason);
+      }
+    }
+  }
+
+  for (const lead of scoredLeads) {
+    try {
+      saveLead(searchKey, lead);
+    } catch (err) {
+      console.error('Cache save error:', err.message);
+    }
+  }
+
+  return scoredLeads;
 }
 
 // POST /api/leads/search
 router.post('/search', async (req, res) => {
   try {
-    const { businessType, location, radiusMiles = 60 } = req.body;
+    let { businessType = 'all', location = DEFAULT_LOCATION, radiusMiles = 60 } = req.body;
 
-    if (!businessType || !location) {
-      return res.status(400).json({ error: 'businessType and location are required' });
-    }
+    if (!location || !location.trim()) location = DEFAULT_LOCATION;
+    const isAll = !businessType || businessType.toLowerCase() === 'all';
 
-    const searchKey = buildSearchKey(businessType, location, radiusMiles);
+    const searchKey = buildSearchKey(isAll ? 'all' : businessType, location, radiusMiles);
 
     // Check cache first
     const cached = getCachedLeads(searchKey);
@@ -28,38 +73,18 @@ router.post('/search', async (req, res) => {
       return res.json({ leads, fromCache: true, searchKey });
     }
 
-    // Fetch from Google Places
-    console.log(`Fetching from Google Places: "${businessType}" near "${location}" (${radiusMiles}mi)`);
-    const businesses = await searchBusinesses(businessType, location, radiusMiles);
+    let scoredLeads = [];
 
-    if (!businesses || businesses.length === 0) {
-      return res.json({ leads: [], fromCache: false, searchKey });
-    }
-
-    // Score each business (parallel, max 5 at a time to avoid rate limits)
-    const chunkSize = 5;
-    const scoredLeads = [];
-    for (let i = 0; i < businesses.length; i += chunkSize) {
-      const chunk = businesses.slice(i, i + chunkSize);
-      const results = await Promise.allSettled(
-        chunk.map((b) => scoreLead({ ...b, category: businessType }))
-      );
-      for (const result of results) {
-        if (result.status === 'fulfilled') {
-          scoredLeads.push(result.value);
-        } else {
-          console.error('Scoring error:', result.reason);
-        }
+    if (isAll) {
+      // Search all categories sequentially to avoid hammering APIs
+      console.log(`Searching all business types near "${location}" (${radiusMiles}mi)`);
+      for (const type of ALL_BUSINESS_TYPES) {
+        const leads = await fetchAndScoreCategory(type, location, radiusMiles, searchKey);
+        scoredLeads.push(...leads);
       }
-    }
-
-    // Cache results
-    for (const lead of scoredLeads) {
-      try {
-        saveLead(searchKey, lead);
-      } catch (err) {
-        console.error('Cache save error:', err.message);
-      }
+    } else {
+      console.log(`Searching "${businessType}" near "${location}" (${radiusMiles}mi)`);
+      scoredLeads = await fetchAndScoreCategory(businessType, location, radiusMiles, searchKey);
     }
 
     const sorted = scoredLeads.sort((a, b) => a.scores.composite - b.scores.composite);

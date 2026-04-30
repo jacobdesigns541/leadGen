@@ -34,14 +34,17 @@ const QUICK_FILTERS = [
 ];
 
 export default function SearchPanel({ onSearch, activeFilters, onFilterToggle, sortOrder, onSortChange, loading }) {
-  const [businessType, setBusinessType] = useState('');
-  const [location, setLocation] = useState('');
+  const [businessType, setBusinessType] = useState('all');
+  const [location, setLocation] = useState('90012');
   const [radius, setRadius] = useState(60);
 
   function handleSubmit(e) {
     e.preventDefault();
-    if (!businessType || !location) return;
-    onSearch({ businessType, location, radiusMiles: radius });
+    onSearch({
+      businessType: businessType || 'all',
+      location: location.trim() || '90012',
+      radiusMiles: radius,
+    });
   }
 
   const inputStyle = {
@@ -90,10 +93,9 @@ export default function SearchPanel({ onSearch, activeFilters, onFilterToggle, s
             <select
               value={businessType}
               onChange={(e) => setBusinessType(e.target.value)}
-              required
               style={{ ...inputStyle, cursor: 'pointer' }}
             >
-              <option value="">Select category...</option>
+              <option value="all">All Business Types</option>
               {BUSINESS_TYPES.map((t) => (
                 <option key={t} value={t}>{t}</option>
               ))}
@@ -108,7 +110,6 @@ export default function SearchPanel({ onSearch, activeFilters, onFilterToggle, s
               value={location}
               onChange={(e) => setLocation(e.target.value)}
               placeholder="e.g. 90022 or East LA"
-              required
               style={inputStyle}
             />
           </div>
@@ -174,7 +175,7 @@ export default function SearchPanel({ onSearch, activeFilters, onFilterToggle, s
 
         <button
           type="submit"
-          disabled={loading || !businessType || !location}
+          disabled={loading}
           style={{
             background: loading ? 'var(--color-border)' : 'linear-gradient(135deg, var(--color-accent), #8b5cf6)',
             color: '#fff',
@@ -183,7 +184,7 @@ export default function SearchPanel({ onSearch, activeFilters, onFilterToggle, s
             fontWeight: '600',
             fontSize: '14px',
             transition: 'all 0.2s',
-            opacity: loading || !businessType || !location ? 0.6 : 1,
+            opacity: loading ? 0.6 : 1,
             boxShadow: loading ? 'none' : '0 4px 14px rgba(99,102,241,0.35)',
             display: 'flex',
             alignItems: 'center',

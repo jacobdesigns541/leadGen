@@ -25,11 +25,26 @@ function buildSearchKey(businessType, location, radiusMiles) {
 }
 
 async function fetchAndScoreCategory(businessType, location, radiusMiles, searchKey) {
-  const businesses = await searchBusinesses(businessType, location, radiusMiles);
-  if (!businesses || businesses.length === 0) return [];
+  console.log(`[leads] Fetching "${businessType}" near "${location}" radius=${radiusMiles}mi`);
 
+  let businesses;
+  try {
+    businesses = await searchBusinesses(businessType, location, radiusMiles);
+  } catch (err) {
+    // Surface the real API error rather than swallowing it
+    console.error(`[leads] searchBusinesses failed for "${businessType}":`, err.message);
+    throw err;
+  }
+
+  if (!businesses || businesses.length === 0) {
+    console.log(`[leads] No results for "${businessType}"`);
+    return [];
+  }
+
+  console.log(`[leads] Scoring ${businesses.length} businesses for "${businessType}"`);
   const chunkSize = 5;
   const scoredLeads = [];
+
   for (let i = 0; i < businesses.length; i += chunkSize) {
     const chunk = businesses.slice(i, i + chunkSize);
     const results = await Promise.allSettled(
@@ -39,7 +54,7 @@ async function fetchAndScoreCategory(businessType, location, radiusMiles, search
       if (result.status === 'fulfilled') {
         scoredLeads.push(result.value);
       } else {
-        console.error('Scoring error:', result.reason);
+        console.error(`[leads] scoreLead error:`, result.reason?.message || result.reason);
       }
     }
   }
@@ -48,7 +63,7 @@ async function fetchAndScoreCategory(businessType, location, radiusMiles, search
     try {
       saveLead(searchKey, lead);
     } catch (err) {
-      console.error('Cache save error:', err.message);
+      console.error('[leads] Cache save error:', err.message);
     }
   }
 
@@ -63,12 +78,14 @@ router.post('/search', async (req, res) => {
     if (!location || !location.trim()) location = DEFAULT_LOCATION;
     const isAll = !businessType || businessType.toLowerCase() === 'all';
 
+    console.log(`[leads] Search request: type="${businessType}" location="${location}" radius=${radiusMiles}mi`);
+
     const searchKey = buildSearchKey(isAll ? 'all' : businessType, location, radiusMiles);
 
-    // Check cache first
+    // Cache check
     const cached = getCachedLeads(searchKey);
     if (cached.length > 0) {
-      console.log(`Cache hit for "${searchKey}" — returning ${cached.length} leads`);
+      console.log(`[leads] Cache hit for "${searchKey}" — ${cached.length} leads`);
       const leads = cached.map(rowToLead).sort((a, b) => a.scores.composite - b.scores.composite);
       return res.json({ leads, fromCache: true, searchKey });
     }
@@ -76,21 +93,26 @@ router.post('/search', async (req, res) => {
     let scoredLeads = [];
 
     if (isAll) {
-      // Search all categories sequentially to avoid hammering APIs
-      console.log(`Searching all business types near "${location}" (${radiusMiles}mi)`);
+      // Run all categories — per-category errors are logged but don't abort the whole search
       for (const type of ALL_BUSINESS_TYPES) {
-        const leads = await fetchAndScoreCategory(type, location, radiusMiles, searchKey);
-        scoredLeads.push(...leads);
+        try {
+          const leads = await fetchAndScoreCategory(type, location, radiusMiles, searchKey);
+          scoredLeads.push(...leads);
+        } catch (err) {
+          console.error(`[leads] Skipping "${type}" due to error:`, err.message);
+        }
       }
     } else {
-      console.log(`Searching "${businessType}" near "${location}" (${radiusMiles}mi)`);
+      // Single category — let the error propagate so the client sees it
       scoredLeads = await fetchAndScoreCategory(businessType, location, radiusMiles, searchKey);
     }
 
     const sorted = scoredLeads.sort((a, b) => a.scores.composite - b.scores.composite);
+    console.log(`[leads] Returning ${sorted.length} scored leads`);
     res.json({ leads: sorted, fromCache: false, searchKey });
   } catch (err) {
-    console.error('Search error:', err.message, err.stack);
+    // Return the real error message — this is what shows in the frontend
+    console.error('[leads] Search failed:', err.message);
     res.status(500).json({ error: err.message || 'Internal server error' });
   }
 });

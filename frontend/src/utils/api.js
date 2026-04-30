@@ -1,4 +1,5 @@
-const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '') || '/api';
+const _base = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+const API_BASE = _base ? `${_base}/api` : '/api';
 
 // Log at module load so the browser console shows which URL is in use
 console.log('[api] API_BASE =', API_BASE);

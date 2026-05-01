@@ -53,7 +53,9 @@ export default function App() {
 
     // Apply filters
     if (activeFilters.includes('hispanicZip')) {
-      result = result.filter((l) => l.isHispanicZip);
+      result = result.filter(
+        (l) => l.hispanicFit?.level === 'strong' || l.hispanicFit?.level === 'possible' || l.isHispanicZip
+      );
     }
     if (activeFilters.includes('noGoogleAds')) {
       result = result.filter((l) => l.noGoogleAds);

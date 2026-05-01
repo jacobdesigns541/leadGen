@@ -2,6 +2,7 @@ const { checkBusinessAdPresence, checkSocialMediaPresence } = require('./serpApi
 const { checkWebsiteQuality } = require('./websiteChecker');
 const { checkTvPresence, checkRadioPresence } = require('./fccApi');
 const { enrichBusinessContact } = require('./apolloApi');
+const { fetchHispanicWebsite, analyzeHispanicFit } = require('./hispanicDetection');
 
 // Scoring weights (must sum to 100)
 // digitalAds: 20 | tv: 20 | radio: 20 | website: 20 | reviews: 10 | social: 10
@@ -84,17 +85,26 @@ async function scoreLead(business) {
   const { businessName, category, address, website, rating, reviewCount, zipCode } = business;
   const city = extractCity(address) || 'Los Angeles';
 
-  const [adResult, tvResult, radioResult, websiteResult, socialResult, contactResult] = await Promise.all([
+  const [adResult, tvResult, radioResult, websiteResult, socialResult, contactResult, hispanicHtml] = await Promise.all([
     checkBusinessAdPresence(businessName, category, city),
     checkTvPresence(businessName),
     checkRadioPresence(businessName),
     checkWebsiteQuality(website),
     checkSocialMediaPresence(businessName),
     enrichBusinessContact(website, businessName),
+    fetchHispanicWebsite(website),
   ]);
 
   const reviewScore = scoreReviews(rating, reviewCount);
   const isHispanicZip = HISPANIC_ZIPS.has(zipCode);
+
+  const hispanicResult = analyzeHispanicFit({
+    business,
+    html: hispanicHtml,
+    adSnippets: adResult.rawSnippets || [],
+    socialSnippets: socialResult.rawSnippets || [],
+    isHispanicZip,
+  });
 
   const scores = {
     digitalAds: adResult.score,    // 0-20
@@ -109,7 +119,9 @@ async function scoreLead(business) {
     scores.digitalAds + scores.tv + scores.radio +
     scores.website + scores.reviews + scores.social;
 
-  if (isHispanicZip) composite = Math.max(0, composite - 5);
+  if (hispanicResult.level === 'possible' || hispanicResult.level === 'strong') {
+    composite = Math.max(0, composite - 5);
+  }
   scores.composite = composite;
 
   return {
@@ -126,6 +138,7 @@ async function scoreLead(business) {
     noRadioAds: !radioResult.hasEvidence,
     tvStations: tvResult.detectedTags || [],
     radioStations: radioResult.detectedTags || [],
+    hispanicFit: hispanicResult,
     pitchNote: generatePitchNote(businessName, scores, isHispanicZip),
     rawData: { adResult, tvResult, radioResult, websiteResult, socialResult },
   };

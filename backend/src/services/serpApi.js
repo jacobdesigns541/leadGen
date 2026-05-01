@@ -49,10 +49,11 @@ async function checkBusinessAdPresence(businessName, category, city) {
       score = 7 + Math.floor(Math.random() * 7);   // 7-13 — some presence
     }
 
-    return { score, hasGoogleAds: hasOwnAds || totalAds > 0, adCount: totalAds };
+    const rawSnippets = ads.map((a) => `${a.title || ''} ${a.snippet || ''}`);
+    return { score, hasGoogleAds: hasOwnAds || totalAds > 0, adCount: totalAds, rawSnippets };
   } catch (err) {
     console.error('[serper] business ad check error:', err.message);
-    return { score: 0, hasGoogleAds: false, adCount: 0 };
+    return { score: 0, hasGoogleAds: false, adCount: 0, rawSnippets: [] };
   }
 }
 
@@ -85,10 +86,11 @@ async function checkSocialMediaPresence(businessName) {
       score = 3 + Math.floor(Math.random() * 4);  // 3-6
     }
 
-    return { score, hasFacebook, hasInstagram };
+    const rawSnippets = organic.map((r) => r.snippet || '');
+    return { score, hasFacebook, hasInstagram, rawSnippets };
   } catch (err) {
     console.error('[serper] social check error:', err.message);
-    return { score: 0, hasFacebook: false, hasInstagram: false };
+    return { score: 0, hasFacebook: false, hasInstagram: false, rawSnippets: [] };
   }
 }
 

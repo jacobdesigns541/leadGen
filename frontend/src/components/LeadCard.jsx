@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { getTierColor, getTierBg, getTierBorder, getTierLabel, getMetricBarColor, METRIC_DEFINITIONS } from '../utils/scoring';
 
 export default function LeadCard({ lead }) {
@@ -6,10 +6,11 @@ export default function LeadCard({ lead }) {
 
   const {
     businessName, category, address, phone, website,
-    rating, reviewCount, isHispanicZip,
+    rating, reviewCount,
     ownerName, ownerTitle, ownerEmail,
     scores, tier, noGoogleAds, noMetaAds, pitchNote,
     tvStations = [], radioStations = [],
+    hispanicFit = null,
   } = lead;
 
   const tierColor = getTierColor(tier);
@@ -53,18 +54,8 @@ export default function LeadCard({ lead }) {
               }}>
                 {businessName}
               </h3>
-              {isHispanicZip && (
-                <span style={{
-                  fontSize: '10px', fontWeight: '700', padding: '2px 8px',
-                  borderRadius: 'var(--radius-full)',
-                  background: 'var(--color-hispanic-bg)',
-                  color: 'var(--color-hispanic)',
-                  border: '1px solid var(--color-hispanic-border)',
-                  textTransform: 'uppercase', letterSpacing: '0.5px',
-                  whiteSpace: 'nowrap',
-                }}>
-                  Hispanic ZIP
-                </span>
+              {hispanicFit && hispanicFit.level !== 'none' && (
+                <HispanicFitBadge fit={hispanicFit} />
               )}
             </div>
             <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
@@ -294,6 +285,99 @@ export default function LeadCard({ lead }) {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+const HISPANIC_BADGE_CONFIG = {
+  strong:   { emoji: '🟢', label: 'Hispanic — Strong',   color: '#22c55e', bg: 'rgba(34,197,94,0.1)',   border: 'rgba(34,197,94,0.3)'   },
+  possible: { emoji: '🟡', label: 'Hispanic — Possible', color: '#f59e0b', bg: 'rgba(245,158,11,0.1)',  border: 'rgba(245,158,11,0.3)'  },
+  'zip-only': { emoji: '⚪', label: 'Hispanic — ZIP only', color: '#94a3b8', bg: 'rgba(148,163,184,0.1)', border: 'rgba(148,163,184,0.3)' },
+};
+
+function HispanicFitBadge({ fit }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const cfg = HISPANIC_BADGE_CONFIG[fit.level];
+  if (!cfg) return null;
+
+  const foundSignals    = (fit.signals || []).filter((s) => s.found);
+  const notFoundSignals = (fit.signals || []).filter((s) => !s.found);
+
+  // Close panel when clicking outside
+  useEffect(() => {
+    if (!open) return;
+    function handleClick(e) {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [open]);
+
+  return (
+    <div ref={ref} style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+      <span style={{
+        fontSize: '10px', fontWeight: '700', padding: '2px 8px',
+        borderRadius: 'var(--radius-full)',
+        background: cfg.bg,
+        color: cfg.color,
+        border: `1px solid ${cfg.border}`,
+        textTransform: 'uppercase', letterSpacing: '0.5px',
+        whiteSpace: 'nowrap',
+      }}>
+        {cfg.emoji} {cfg.label}
+      </span>
+      <button
+        onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
+        title="View detected signals"
+        style={{
+          marginLeft: '4px',
+          background: 'none',
+          color: 'var(--color-text-muted)',
+          fontSize: '12px',
+          lineHeight: 1,
+          padding: '1px 3px',
+          borderRadius: '50%',
+          border: '1px solid var(--color-border)',
+          cursor: 'pointer',
+          flexShrink: 0,
+        }}
+      >
+        ⓘ
+      </button>
+
+      {open && (
+        <div style={{
+          position: 'absolute',
+          top: 'calc(100% + 6px)',
+          left: 0,
+          zIndex: 50,
+          width: '260px',
+          background: 'var(--color-surface)',
+          border: `1px solid ${cfg.border}`,
+          borderRadius: 'var(--radius-md)',
+          padding: '10px 12px',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+        }}>
+          <div style={{ fontSize: '10px', fontWeight: '700', color: cfg.color, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '8px' }}>
+            Hispanic Market Fit · {fit.points} pt{fit.points !== 1 ? 's' : ''}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+            {foundSignals.map((s) => (
+              <div key={s.key} style={{ display: 'flex', gap: '6px', alignItems: 'flex-start', fontSize: '11px' }}>
+                <span style={{ color: '#22c55e', flexShrink: 0 }}>✓</span>
+                <span style={{ color: 'var(--color-text)' }}>{s.label}</span>
+              </div>
+            ))}
+            {notFoundSignals.map((s) => (
+              <div key={s.key} style={{ display: 'flex', gap: '6px', alignItems: 'flex-start', fontSize: '11px' }}>
+                <span style={{ color: 'var(--color-text-dim)', flexShrink: 0 }}>✗</span>
+                <span style={{ color: 'var(--color-text-dim)' }}>{s.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -50,7 +50,7 @@ Required keys:
 | Variable | Where to get it |
 |---|---|
 | `GOOGLE_PLACES_API_KEY` | [Google Cloud Console](https://console.cloud.google.com) — enable **Places API (New)** and **Geocoding API** |
-| `SERP_API_KEY` | [SerpAPI dashboard](https://serpapi.com/manage-api-key) |
+| `SERPER_API_KEY` | [Serper.dev dashboard](https://serper.dev/api-key) |
 | `APOLLO_API_KEY` | [Apollo.io developer portal](https://developer.apollo.io) |
 
 ### 3. Run locally

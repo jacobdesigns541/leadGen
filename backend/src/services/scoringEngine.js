@@ -37,29 +37,47 @@ function scoreReviews(rating, reviewCount) {
 function generatePitchNote(businessName, scores, isHispanicZip) {
   const weaknesses = [];
 
-  if (scores.digitalAds <= 3)  weaknesses.push('no paid search presence');
-  else if (scores.digitalAds <= 10) weaknesses.push('limited Google Ads visibility');
+  if (scores.digitalAds <= 3)
+    weaknesses.push('no paid search presence');
+  else if (scores.digitalAds <= 10)
+    weaknesses.push('limited Google Ads visibility');
 
-  if (scores.tv <= 3)          weaknesses.push('no TV advertising detected');
-  if (scores.radio <= 3)       weaknesses.push('no radio advertising detected');
+  if (scores.tv <= 3)
+    weaknesses.push('no TV presence detected — strong broadcast opportunity');
+  else if (scores.tv <= 8)
+    weaknesses.push('limited TV advertising signal');
 
-  if (scores.website <= 5)     weaknesses.push('no website or very weak web presence');
-  else if (scores.website <= 10) weaknesses.push('outdated website lacking tracking pixels');
+  if (scores.radio <= 3) {
+    weaknesses.push(
+      isHispanicZip
+        ? 'no Spanish-language radio presence detected — KLAX and KBUE reach this market directly'
+        : 'no radio advertising detected'
+    );
+  } else if (scores.radio <= 8) {
+    weaknesses.push('limited radio advertising signal');
+  }
 
-  if (scores.social <= 2)      weaknesses.push('no detectable social media activity');
+  if (scores.website <= 5)
+    weaknesses.push('no website or very weak web presence');
+  else if (scores.website <= 10)
+    weaknesses.push('outdated website lacking tracking pixels');
 
-  if (scores.reviews <= 2)     weaknesses.push('very few online reviews');
+  if (scores.social <= 2)
+    weaknesses.push('no detectable social media activity');
+
+  if (scores.reviews <= 2)
+    weaknesses.push('very few online reviews');
 
   if (weaknesses.length === 0) {
     return `${businessName} has strong digital and broadcast presence — pitch on growth and ROI optimization.`;
   }
 
   const topWeakness = weaknesses.slice(0, 2).join(' and ');
-  const hispanicNote = isHispanicZip
+  const hispanicSuffix = isHispanicZip && scores.radio > 3
     ? ' Located in a high-density Hispanic market area — ideal for Spanish-language campaigns.'
     : '';
 
-  return `${businessName} shows ${topWeakness}.${hispanicNote} Strong candidate for a full digital + broadcast package.`;
+  return `${businessName} shows ${topWeakness}.${hispanicSuffix} Strong candidate for a full digital + broadcast package.`;
 }
 
 async function scoreLead(business) {
@@ -104,8 +122,8 @@ async function scoreLead(business) {
     tier: scoreTier(composite),
     noGoogleAds: !adResult.hasGoogleAds,
     noMetaAds: !websiteResult.hasFBPixel,
-    noTvAds: tvResult.stationsFound === 0,
-    noRadioAds: radioResult.stationsFound === 0,
+    noTvAds: !tvResult.hasEvidence,
+    noRadioAds: !radioResult.hasEvidence,
     pitchNote: generatePitchNote(businessName, scores, isHispanicZip),
     rawData: { adResult, tvResult, radioResult, websiteResult, socialResult },
   };

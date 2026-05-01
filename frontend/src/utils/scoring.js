@@ -50,8 +50,8 @@ export function getMetricBarColor(score, maxScore) {
 
 export const METRIC_DEFINITIONS = [
   { key: 'digitalAds', label: 'Digital Ad Presence', maxScore: 20 },
-  { key: 'tv',         label: 'TV Presence',          maxScore: 20 },
-  { key: 'radio',      label: 'Radio Presence',       maxScore: 20 },
+  { key: 'tv',         label: 'TV Presence',          maxScore: 20, note: 'Serper signal — verify manually' },
+  { key: 'radio',      label: 'Radio Presence',       maxScore: 20, note: 'Serper signal — verify manually' },
   { key: 'website',    label: 'Website Quality',      maxScore: 20 },
   { key: 'reviews',    label: 'Reviews',              maxScore: 10 },
   { key: 'social',     label: 'Social Media',         maxScore: 10 },

@@ -246,7 +246,6 @@ export default function LeadCard({ lead }) {
                         borderRadius: 'var(--radius-full)',
                         transition: 'width 0.4s ease',
                       }} />
-                      {/* Dot indicator */}
                       <div style={{
                         position: 'absolute',
                         top: '50%',
@@ -258,6 +257,11 @@ export default function LeadCard({ lead }) {
                         boxShadow: `0 0 4px ${barColor}`,
                       }} />
                     </div>
+                    {metric.note && (
+                      <div style={{ fontSize: '10px', color: 'var(--color-text-dim)', marginTop: '3px', fontStyle: 'italic' }}>
+                        {metric.note}
+                      </div>
+                    )}
                   </div>
                 );
               })}

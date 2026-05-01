@@ -52,10 +52,8 @@ export default function App() {
     let result = [...leads];
 
     // Apply filters
-    if (activeFilters.includes('hispanicZip')) {
-      result = result.filter(
-        (l) => l.hispanicFit?.level === 'strong' || l.hispanicFit?.level === 'possible' || l.isHispanicZip
-      );
+    if (activeFilters.includes('hispanicMarket')) {
+      result = result.filter((l) => l.hispanicFit?.level === 'strong');
     }
     if (activeFilters.includes('noGoogleAds')) {
       result = result.filter((l) => l.noGoogleAds);
@@ -71,12 +69,6 @@ export default function App() {
     }
     if (activeFilters.includes('weakWebsite')) {
       result = result.filter((l) => (l.scores?.website ?? 0) <= 8);
-    }
-    if (activeFilters.includes('under50Reviews')) {
-      result = result.filter((l) => (l.reviewCount ?? 0) < 50);
-    }
-    if (activeFilters.includes('hotOnly')) {
-      result = result.filter((l) => l.tier === 'hot');
     }
 
     // Sort

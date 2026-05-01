@@ -46,11 +46,10 @@ export default function LeadCard({ lead }) {
         {/* Header row */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '4px' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', flexWrap: 'wrap', marginBottom: '4px' }}>
               <h3 style={{
                 fontSize: '15px', fontWeight: '700', color: 'var(--color-text)',
-                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                maxWidth: '220px',
+                lineHeight: '1.3', wordBreak: 'break-word',
               }}>
                 {businessName}
               </h3>

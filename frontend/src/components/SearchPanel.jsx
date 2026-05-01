@@ -24,14 +24,12 @@ const SORT_OPTIONS = [
 ];
 
 const QUICK_FILTERS = [
-  { key: 'hispanicZip',   label: '🌟 Hispanic Market ZIP' },
-  { key: 'noGoogleAds',   label: 'No Google Ads' },
-  { key: 'noMetaAds',     label: 'No Meta Ads' },
-  { key: 'noTvAds',       label: 'No TV ads detected' },
-  { key: 'noRadioAds',    label: 'No Radio ads detected' },
-  { key: 'weakWebsite',   label: 'Weak Website' },
-  { key: 'under50Reviews',label: 'Under 50 Reviews' },
-  { key: 'hotOnly',       label: '🔥 Hot Leads Only' },
+  { key: 'hispanicMarket', label: '🌟 Hispanic Market' },
+  { key: 'noGoogleAds',    label: 'No Google Ads' },
+  { key: 'noMetaAds',      label: 'No Meta Ads' },
+  { key: 'noTvAds',        label: 'No TV ads detected' },
+  { key: 'noRadioAds',     label: 'No Radio ads detected' },
+  { key: 'weakWebsite',    label: 'Weak Website' },
 ];
 
 export default function SearchPanel({ onSearch, activeFilters, onFilterToggle, sortOrder, onSortChange, loading }) {

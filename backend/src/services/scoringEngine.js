@@ -124,6 +124,8 @@ async function scoreLead(business) {
     noMetaAds: !websiteResult.hasFBPixel,
     noTvAds: !tvResult.hasEvidence,
     noRadioAds: !radioResult.hasEvidence,
+    tvStations: tvResult.detectedTags || [],
+    radioStations: radioResult.detectedTags || [],
     pitchNote: generatePitchNote(businessName, scores, isHispanicZip),
     rawData: { adResult, tvResult, radioResult, websiteResult, socialResult },
   };

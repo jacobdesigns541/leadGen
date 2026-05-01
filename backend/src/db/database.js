@@ -68,6 +68,8 @@ async function initDb() {
       no_meta_ads INTEGER DEFAULT 0,
       no_tv_ads INTEGER DEFAULT 0,
       no_radio_ads INTEGER DEFAULT 0,
+      tv_stations TEXT DEFAULT '[]',
+      radio_stations TEXT DEFAULT '[]',
       pitch_note TEXT,
       raw_data TEXT,
       created_at INTEGER NOT NULL
@@ -75,6 +77,10 @@ async function initDb() {
     CREATE INDEX IF NOT EXISTS idx_place_id ON cached_leads(place_id);
     CREATE INDEX IF NOT EXISTS idx_search_key ON cached_leads(search_key);
   `);
+
+  // Migrations for existing DBs
+  try { db.run(`ALTER TABLE cached_leads ADD COLUMN tv_stations TEXT DEFAULT '[]'`); } catch (_) {}
+  try { db.run(`ALTER TABLE cached_leads ADD COLUMN radio_stations TEXT DEFAULT '[]'`); } catch (_) {}
 
   persistDb();
   console.log('Database initialized at', DB_PATH);
@@ -103,6 +109,7 @@ function saveLead(searchKey, lead) {
     lead.scores.website, lead.scores.reviews, lead.scores.social, lead.scores.composite,
     lead.noGoogleAds ? 1 : 0, lead.noMetaAds ? 1 : 0,
     lead.noTvAds ? 1 : 0, lead.noRadioAds ? 1 : 0,
+    JSON.stringify(lead.tvStations || []), JSON.stringify(lead.radioStations || []),
     lead.pitchNote, JSON.stringify(lead.rawData), Date.now(),
   ];
 
@@ -115,6 +122,7 @@ function saveLead(searchKey, lead) {
         score_digital_ads=?, score_tv=?, score_radio=?,
         score_website=?, score_reviews=?, score_social=?, score_composite=?,
         no_google_ads=?, no_meta_ads=?, no_tv_ads=?, no_radio_ads=?,
+        tv_stations=?, radio_stations=?,
         pitch_note=?, raw_data=?, created_at=?
       WHERE place_id=? AND search_key=?
     `, [...vals, lead.placeId, searchKey]);
@@ -125,8 +133,8 @@ function saveLead(searchKey, lead) {
          latitude, longitude, zip_code, is_hispanic_zip, owner_name, owner_title, owner_email,
          score_digital_ads, score_tv, score_radio, score_website, score_reviews, score_social,
          score_composite, no_google_ads, no_meta_ads, no_tv_ads, no_radio_ads,
-         pitch_note, raw_data, created_at)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+         tv_stations, radio_stations, pitch_note, raw_data, created_at)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     `, [lead.placeId, searchKey, ...vals]);
   }
 
@@ -163,11 +171,13 @@ function rowToLead(row) {
       social:     row.score_social,
       composite:  row.score_composite,
     },
-    noGoogleAds:  row.no_google_ads === 1,
-    noMetaAds:    row.no_meta_ads === 1,
-    noTvAds:      row.no_tv_ads === 1,
-    noRadioAds:   row.no_radio_ads === 1,
-    pitchNote:    row.pitch_note,
+    noGoogleAds:    row.no_google_ads === 1,
+    noMetaAds:      row.no_meta_ads === 1,
+    noTvAds:        row.no_tv_ads === 1,
+    noRadioAds:     row.no_radio_ads === 1,
+    tvStations:     row.tv_stations ? JSON.parse(row.tv_stations) : [],
+    radioStations:  row.radio_stations ? JSON.parse(row.radio_stations) : [],
+    pitchNote:      row.pitch_note,
     rawData:      row.raw_data ? JSON.parse(row.raw_data) : {},
     cachedAt:     row.created_at,
   };

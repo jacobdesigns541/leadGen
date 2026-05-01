@@ -9,6 +9,7 @@ export default function LeadCard({ lead }) {
     rating, reviewCount, isHispanicZip,
     ownerName, ownerTitle, ownerEmail,
     scores, tier, noGoogleAds, noMetaAds, pitchNote,
+    tvStations = [], radioStations = [],
   } = lead;
 
   const tierColor = getTierColor(tier);
@@ -224,6 +225,11 @@ export default function LeadCard({ lead }) {
                 const score = scores[metric.key] ?? 0;
                 const pct = (score / metric.maxScore) * 100;
                 const barColor = getMetricBarColor(score, metric.maxScore);
+
+                let stationTags = null;
+                if (metric.key === 'tv') stationTags = { tags: tvStations, color: '#3b82f6' };
+                if (metric.key === 'radio') stationTags = { tags: radioStations, color: '#a855f7' };
+
                 return (
                   <div key={metric.key}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
@@ -262,6 +268,9 @@ export default function LeadCard({ lead }) {
                         {metric.note}
                       </div>
                     )}
+                    {stationTags && (
+                      <StationTags tags={stationTags.tags} color={stationTags.color} />
+                    )}
                   </div>
                 );
               })}
@@ -285,6 +294,52 @@ export default function LeadCard({ lead }) {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function StationTags({ tags, color }) {
+  const MAX = 5;
+  const visible = tags.slice(0, MAX);
+  const overflow = tags.length - MAX;
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '5px' }}>
+      {visible.length > 0 ? (
+        <>
+          {visible.map((tag) => (
+            <span key={tag} style={{
+              fontSize: '10px', fontWeight: '600', padding: '2px 8px',
+              borderRadius: 'var(--radius-full)',
+              background: `${color}18`,
+              color: color,
+              border: `1px solid ${color}40`,
+            }}>
+              {tag}
+            </span>
+          ))}
+          {overflow > 0 && (
+            <span style={{
+              fontSize: '10px', fontWeight: '500', padding: '2px 8px',
+              borderRadius: 'var(--radius-full)',
+              background: 'var(--color-surface-2)',
+              color: 'var(--color-text-muted)',
+              border: '1px solid var(--color-border)',
+            }}>
+              +{overflow} more
+            </span>
+          )}
+        </>
+      ) : (
+        <span style={{
+          fontSize: '10px', fontStyle: 'italic', padding: '2px 8px',
+          borderRadius: 'var(--radius-full)',
+          background: 'var(--color-surface-2)',
+          color: 'var(--color-text-dim)',
+          border: '1px solid var(--color-border)',
+        }}>
+          None detected — verify manually
+        </span>
+      )}
     </div>
   );
 }

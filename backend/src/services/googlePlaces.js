@@ -82,6 +82,28 @@ async function geocodeLocation(address, apiKey) {
   return response.data.results[0].geometry.location;
 }
 
+async function getPlaceDetails(placeId) {
+  const apiKey = process.env.GOOGLE_PLACES_API_KEY;
+  if (!apiKey) throw new Error('GOOGLE_PLACES_API_KEY is not set in environment');
+
+  let response;
+  try {
+    response = await axios.get(`${PLACES_BASE}/places/${placeId}`, {
+      headers: {
+        'X-Goog-Api-Key': apiKey,
+        'X-Goog-FieldMask':
+          'id,displayName,formattedAddress,nationalPhoneNumber,websiteUri,' +
+          'rating,userRatingCount,addressComponents,primaryType',
+      },
+      timeout: 10000,
+    });
+  } catch (err) {
+    throw axiosError('Google Places details', err);
+  }
+
+  return normalizePlaceResult(response.data);
+}
+
 function normalizePlaceResult(place) {
   const components = place.addressComponents || [];
   const zip = components.find((c) => c.types?.includes('postal_code'));
@@ -100,4 +122,4 @@ function normalizePlaceResult(place) {
   };
 }
 
-module.exports = { searchBusinesses };
+module.exports = { searchBusinesses, getPlaceDetails };

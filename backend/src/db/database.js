@@ -41,7 +41,7 @@ async function initDb() {
   // The scoring engine was rebuilt from scratch — old cached rows use an
   // incompatible schema (tv/radio/website-checker scores) and must be dropped.
   const existingCols = queryAll(`PRAGMA table_info(cached_leads)`);
-  const hasNewSchema = existingCols.some((c) => c.name === 'score_digital');
+  const hasNewSchema = existingCols.some((c) => c.name === 'digital_error_reason');
   if (existingCols.length > 0 && !hasNewSchema) {
     db.run('DROP TABLE cached_leads');
   }
@@ -72,6 +72,8 @@ async function initDb() {
       score_composite INTEGER DEFAULT 0,
       digital_unavailable INTEGER DEFAULT 0,
       broadcast_unavailable INTEGER DEFAULT 0,
+      digital_error_reason TEXT,
+      broadcast_error_reason TEXT,
       tier TEXT,
       no_google_ads INTEGER DEFAULT 0,
       no_meta_ads INTEGER DEFAULT 0,
@@ -112,6 +114,7 @@ function saveLead(searchKey, lead) {
     lead.scores.digital, lead.scores.broadcast, lead.scores.website,
     lead.scores.reviews, lead.scores.social, lead.scores.composite,
     lead.unavailable?.digital ? 1 : 0, lead.unavailable?.broadcast ? 1 : 0,
+    lead.errorReasons?.digital || null, lead.errorReasons?.broadcast || null,
     lead.tier,
     lead.noGoogleAds ? 1 : 0, lead.noMetaAds ? 1 : 0,
     JSON.stringify(lead.broadcastNotes || []),
@@ -128,7 +131,7 @@ function saveLead(searchKey, lead) {
         latitude=?, longitude=?, zip_code=?,
         owner_name=?, owner_title=?, owner_email=?,
         score_digital=?, score_broadcast=?, score_website=?, score_reviews=?, score_social=?, score_composite=?,
-        digital_unavailable=?, broadcast_unavailable=?, tier=?,
+        digital_unavailable=?, broadcast_unavailable=?, digital_error_reason=?, broadcast_error_reason=?, tier=?,
         no_google_ads=?, no_meta_ads=?,
         broadcast_notes=?, website_signals=?, hispanic_signals=?, youtube_results=?,
         pitch_note=?, cached_at=?, expires_at=?
@@ -140,10 +143,11 @@ function saveLead(searchKey, lead) {
         (place_id, search_key, business_name, category, address, phone, website, rating, review_count,
          latitude, longitude, zip_code, owner_name, owner_title, owner_email,
          score_digital, score_broadcast, score_website, score_reviews, score_social, score_composite,
-         digital_unavailable, broadcast_unavailable, tier, no_google_ads, no_meta_ads,
+         digital_unavailable, broadcast_unavailable, digital_error_reason, broadcast_error_reason, tier,
+         no_google_ads, no_meta_ads,
          broadcast_notes, website_signals, hispanic_signals, youtube_results,
          pitch_note, cached_at, expires_at)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     `, [lead.placeId, searchKey, ...vals]);
   }
 
@@ -181,6 +185,10 @@ function rowToLead(row) {
     unavailable: {
       digital: row.digital_unavailable === 1,
       broadcast: row.broadcast_unavailable === 1,
+    },
+    errorReasons: {
+      digital: row.digital_error_reason || null,
+      broadcast: row.broadcast_error_reason || null,
     },
     tier: row.tier,
     noGoogleAds: row.no_google_ads === 1,

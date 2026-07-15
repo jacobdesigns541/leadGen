@@ -34,16 +34,30 @@ const QUICK_FILTERS = [
 
 export default function SearchPanel({ onSearch, activeFilters, onFilterToggle, sortOrder, onSortChange, loading }) {
   const [businessType, setBusinessType] = useState('all');
+  const [businessQuery, setBusinessQuery] = useState('');
   const [location, setLocation] = useState('90012');
   const [radius, setRadius] = useState(60);
 
   function handleSubmit(e) {
     e.preventDefault();
-    onSearch({
-      businessType: businessType || 'all',
-      location: location.trim() || '90012',
-      radiusMiles: radius,
-    });
+
+    const trimmedQuery = businessQuery.trim();
+    const matchedCategory = BUSINESS_TYPES.find((t) => t.toLowerCase() === trimmedQuery.toLowerCase());
+
+    if (trimmedQuery && !matchedCategory) {
+      // Specific business name — takes priority over the dropdown when both are filled
+      onSearch({
+        businessName: trimmedQuery,
+        location: location.trim() || '90012',
+        radiusMiles: radius,
+      });
+    } else {
+      onSearch({
+        businessType: matchedCategory || businessType || 'all',
+        location: location.trim() || '90012',
+        radiusMiles: radius,
+      });
+    }
   }
 
   const inputStyle = {
@@ -85,7 +99,7 @@ export default function SearchPanel({ onSearch, activeFilters, onFilterToggle, s
       </div>
 
       <form onSubmit={handleSubmit}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 160px 180px', gap: '16px', marginBottom: '16px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 140px 200px', gap: '16px', marginBottom: '16px' }}>
           {/* Business Type */}
           <div>
             <label style={labelStyle}>Business Type</label>
@@ -99,6 +113,18 @@ export default function SearchPanel({ onSearch, activeFilters, onFilterToggle, s
                 <option key={t} value={t}>{t}</option>
               ))}
             </select>
+          </div>
+
+          {/* Business name or type — free-text search that overrides the dropdown when filled */}
+          <div>
+            <label style={labelStyle}>Business name or type</label>
+            <input
+              type="text"
+              value={businessQuery}
+              onChange={(e) => setBusinessQuery(e.target.value)}
+              placeholder="e.g. Familia Auto Sales or Auto Dealership"
+              style={inputStyle}
+            />
           </div>
 
           {/* Location */}

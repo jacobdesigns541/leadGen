@@ -145,9 +145,11 @@ function rawSignalToScore(raw) {
   return 2;
 }
 
-function scoreBroadcast({ html, htmlAvailable, youtubeVideos }) {
+function scoreBroadcast({ html, htmlAvailable, youtubeVideos, youtubeErrorReason }) {
   if (!htmlAvailable) {
-    return { score: null, notes: ['Website unavailable — broadcast check incomplete'], rawSignal: null };
+    const notes = ['Website unavailable — broadcast check incomplete'];
+    if (youtubeErrorReason) notes.push(`⚠️ YouTube check unavailable — ${youtubeErrorReason}`);
+    return { score: null, notes, rawSignal: null };
   }
 
   const websiteResult = scoreBroadcastFromHtml(html);
@@ -156,6 +158,8 @@ function scoreBroadcast({ html, htmlAvailable, youtubeVideos }) {
 
   const rawSignal = websiteResult.points + cappedYoutubePoints;
   const notes = [...websiteResult.notes, ...youtubeResult.notes];
+
+  if (youtubeErrorReason) notes.push(`⚠️ YouTube check unavailable — ${youtubeErrorReason}`);
 
   if (notes.length === 0) {
     notes.push('No broadcast signals detected — verify manually during outreach');

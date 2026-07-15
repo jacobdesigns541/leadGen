@@ -8,9 +8,10 @@ const { scoreWebsiteQuality } = require('./websiteQualityScoring');
 const { scoreReviews } = require('./reviewsScoring');
 const { findSocialLinks, checkRecentActivity } = require('./socialScoring');
 const { analyzeHispanicFit } = require('./hispanicFit');
+const { formatApiError } = require('./apiErrors');
 
 // Wraps every external API call so one failure never fails the whole business,
-// and logs metric/business/status/timing for every call as required.
+// and logs metric/business/status/timing/error-detail/stack for every call.
 async function timedCall(metricName, businessName, fn) {
   const start = Date.now();
   try {
@@ -19,7 +20,11 @@ async function timedCall(metricName, businessName, fn) {
     return { ok: true, data };
   } catch (err) {
     const status = err.response?.status || 'error';
-    console.error(`[api] metric=${metricName} business="${businessName}" status=${status} time=${Date.now() - start}ms error=${err.message}`);
+    console.error(
+      `[api] metric=${metricName} business="${businessName}" status=${status} time=${Date.now() - start}ms ` +
+      `error=${err.message} responseBody=${JSON.stringify(err.response?.data ?? null)}`
+    );
+    console.error(`[api] metric=${metricName} business="${businessName}" stack:\n${err.stack}`);
     return { ok: false, error: err };
   }
 }
@@ -91,17 +96,24 @@ async function scoreLead(business) {
   ];
 
   let digitalScore = null;
+  let digitalErrorReason = null;
   const digitalUnavailable = !adsResult.ok;
   if (adsResult.ok) {
     digitalScore = adsResult.data.hasAds ? 3 : 23;
+  } else {
+    digitalErrorReason = formatApiError('Serper', adsResult.error);
   }
+
+  const youtubeFailures = [yt1Result, yt2Result].filter((r) => !r.ok);
+  const youtubeErrorReason = youtubeFailures.length > 0 ? formatApiError('YouTube', youtubeFailures[0].error) : null;
 
   // ── Wave 2: fires after Wave 1 — uses the website URL from Places details ──
   const websiteFetchResult = await timedCall('website-fetch', businessName, () => fetchWebsiteHtml(website));
   const htmlAvailable = websiteFetchResult.ok;
   const html = htmlAvailable ? websiteFetchResult.data : null;
+  const websiteFetchErrorReason = htmlAvailable ? null : formatApiError('Website', websiteFetchResult.error);
 
-  const broadcastResult = scoreBroadcast({ html, htmlAvailable, youtubeVideos });
+  const broadcastResult = scoreBroadcast({ html, htmlAvailable, youtubeVideos, youtubeErrorReason });
   const websiteQualityResult = scoreWebsiteQuality({
     hasWebsiteUrl: !!website,
     htmlAvailable,
@@ -167,6 +179,10 @@ async function scoreLead(business) {
     unavailable: {
       digital: digitalUnavailable,
       broadcast: broadcastResult.score === null,
+    },
+    errorReasons: {
+      digital: digitalErrorReason,
+      broadcast: broadcastResult.score === null ? websiteFetchErrorReason : null,
     },
     tier: scoreTier(composite),
     noGoogleAds: digitalScore !== null && digitalScore >= 20,

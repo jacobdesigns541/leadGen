@@ -12,6 +12,10 @@ const RECENCY_HINTS = [
   'days ago', 'day ago', 'this week', 'today', 'yesterday', 'updated',
 ];
 
+const ENGAGEMENT_HINTS = [
+  'followers', 'subscribers', 'likes', 'reviews', 'comments', 'shares', 'k followers',
+];
+
 function findSocialLinks(html) {
   const hrefRe = /href=["']([^"']+)["']/gi;
   const found = new Set();
@@ -43,10 +47,12 @@ async function checkRecentActivity(businessName) {
   );
 
   const organic = response.data?.organic || [];
-  return organic.some((r) => {
-    const snippet = (r.snippet || '').toLowerCase();
-    return RECENCY_HINTS.some((h) => snippet.includes(h));
-  });
+  const snippets = organic.map((r) => (r.snippet || '').toLowerCase());
+
+  return {
+    recent: snippets.some((s) => RECENCY_HINTS.some((h) => s.includes(h))),
+    highEngagement: snippets.some((s) => ENGAGEMENT_HINTS.some((h) => s.includes(h))),
+  };
 }
 
 module.exports = { findSocialLinks, checkRecentActivity };

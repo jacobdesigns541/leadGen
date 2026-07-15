@@ -52,29 +52,21 @@ export default function App() {
     let result = [...leads];
 
     // Apply filters
-    if (activeFilters.includes('hispanicZip')) {
-      result = result.filter((l) => l.isHispanicZip);
+    if (activeFilters.includes('hispanicMarket')) {
+      result = result.filter((l) => l.hispanicFit?.level === 'strong' || l.hispanicFit?.level === 'possible');
     }
     if (activeFilters.includes('noGoogleAds')) {
-      result = result.filter((l) => l.noGoogleAds);
+      result = result.filter((l) => (l.scores?.digital ?? 0) >= 20);
     }
     if (activeFilters.includes('noMetaAds')) {
-      result = result.filter((l) => l.noMetaAds);
+      // No separate Meta Ads signal exists — this reuses the Serper digital-ads inference
+      result = result.filter((l) => (l.scores?.digital ?? 0) >= 20);
     }
-    if (activeFilters.includes('noTvAds')) {
-      result = result.filter((l) => l.noTvAds);
-    }
-    if (activeFilters.includes('noRadioAds')) {
-      result = result.filter((l) => l.noRadioAds);
+    if (activeFilters.includes('noBroadcast')) {
+      result = result.filter((l) => (l.scores?.broadcast ?? 0) >= 20);
     }
     if (activeFilters.includes('weakWebsite')) {
-      result = result.filter((l) => (l.scores?.website ?? 0) <= 8);
-    }
-    if (activeFilters.includes('under50Reviews')) {
-      result = result.filter((l) => (l.reviewCount ?? 0) < 50);
-    }
-    if (activeFilters.includes('hotOnly')) {
-      result = result.filter((l) => l.tier === 'hot');
+      result = result.filter((l) => (l.scores?.website ?? 0) >= 18);
     }
 
     // Sort
@@ -82,16 +74,14 @@ export default function App() {
       switch (sortOrder) {
         case 'composite':
           return (a.scores?.composite ?? 100) - (b.scores?.composite ?? 100);
-        case 'digitalAds':
-          return (a.scores?.digitalAds ?? 20) - (b.scores?.digitalAds ?? 20);
-        case 'tv':
-          return (a.scores?.tv ?? 20) - (b.scores?.tv ?? 20);
-        case 'radio':
-          return (a.scores?.radio ?? 20) - (b.scores?.radio ?? 20);
+        case 'digital':
+          return (a.scores?.digital ?? 25) - (b.scores?.digital ?? 25);
+        case 'broadcast':
+          return (a.scores?.broadcast ?? 25) - (b.scores?.broadcast ?? 25);
         case 'website':
-          return (a.scores?.website ?? 20) - (b.scores?.website ?? 20);
+          return (a.scores?.website ?? 25) - (b.scores?.website ?? 25);
         case 'reviews':
-          return (a.scores?.reviews ?? 10) - (b.scores?.reviews ?? 10);
+          return (a.scores?.reviews ?? 15) - (b.scores?.reviews ?? 15);
         default:
           return 0;
       }

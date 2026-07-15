@@ -11,15 +11,23 @@ A lead generation web app for sales representatives targeting the Hispanic marke
 
 ## Scoring System (lower = better opportunity)
 
+Each business is scored via two waves of API calls: Wave 1 fires Google Places details,
+a Serper digital-ads check, Apollo contact enrichment, and two YouTube searches
+simultaneously; Wave 2 fetches the business website once and runs all HTML-based
+analysis (broadcast signals, website quality, social links, Hispanic-market fit)
+against that single fetch. Up to 5 businesses are scored concurrently.
+
 | Metric | Max Points | Low Score Means… |
 |---|---|---|
-| Digital Ad Presence | 30 | Business runs no paid Google Ads |
-| Competitor Ads | 25 | Few/no competitors are advertising |
-| Website Quality | 20 | Site is outdated or missing tracking |
+| Digital Ad Presence | 25 | No Google Ads detected via Serper (binary: 3 = advertising, 23 = not) |
+| Broadcast Media | 25 | No TV/radio signals found on the website or via YouTube search |
+| Website Quality | 25 | Site is outdated, unreachable, or missing tracking/mobile support |
 | Reviews | 15 | Few reviews — room to grow |
-| Social Media | 10 | No detectable Facebook/Instagram |
+| Social Media | 10 | No detectable social links, or no recent activity |
 
-**Hispanic Market ZIP bonus:** −5 points for businesses in majority-Hispanic LA ZIP codes.
+**Hispanic Market Fit bonus:** −5 composite points when the Hispanic-market-fit signal
+level is "possible" or "strong" (point-based detection across website content, business
+name, reviews, and ZIP code — see badge tooltip on each card for detected signals).
 
 **Lead tiers:** 🟢 Hot (0–30) · 🟡 Warm (31–60) · 🔴 Low Priority (61–100)
 
@@ -71,8 +79,8 @@ Open [http://localhost:3000](http://localhost:3000).
 2. Go to [render.com](https://render.com) → **New** → **Blueprint**.
 3. Connect your GitHub repo — Render will detect `render.yaml` and create both services automatically.
 4. In the Render dashboard, set environment variables for `leadgen-la-backend`:
-   - `GOOGLE_PLACES_API_KEY`
-   - `SERP_API_KEY`
+   - `GOOGLE_PLACES_API_KEY` (also used for the YouTube Data API v3 — enable it on the same key)
+   - `SERPER_API_KEY`
    - `APOLLO_API_KEY`
 5. Deploy. The frontend static site will proxy `/api` requests to the backend automatically.
 
@@ -86,13 +94,19 @@ leadgen/
 │   ├── src/
 │   │   ├── index.js              # Express server entry point
 │   │   ├── routes/
-│   │   │   └── leads.js          # POST /api/leads/search
+│   │   │   └── leads.js                 # POST /api/leads/search (p-limit concurrency cap: 5)
 │   │   ├── services/
-│   │   │   ├── googlePlaces.js   # Google Places API (New)
-│   │   │   ├── serpApi.js        # SerpAPI — ads + social detection
-│   │   │   ├── websiteChecker.js # Website quality analysis
-│   │   │   ├── apolloApi.js      # Apollo contact enrichment
-│   │   │   └── scoringEngine.js  # Composite scoring + pitch notes
+│   │   │   ├── googlePlaces.js          # Google Places search, geocoding, place details
+│   │   │   ├── digitalAdsScoring.js     # Serper ads-array check (Wave 1)
+│   │   │   ├── youtubeApi.js            # YouTube Data API v3 search (Wave 1)
+│   │   │   ├── apolloApi.js             # Apollo contact enrichment (Wave 1)
+│   │   │   ├── websiteFetch.js          # Single website HTML fetch (Wave 2)
+│   │   │   ├── broadcastScoring.js      # Broadcast signal detection from HTML + YouTube
+│   │   │   ├── websiteQualityScoring.js # Website quality signal scoring
+│   │   │   ├── reviewsScoring.js        # Review count/rating scoring
+│   │   │   ├── socialScoring.js         # Social link + recency scoring
+│   │   │   ├── hispanicFit.js           # Hispanic market fit point system
+│   │   │   └── scoringEngine.js         # Wave orchestration + composite + pitch notes
 │   │   └── db/
 │   │       └── database.js       # SQLite cache (7-day TTL)
 │   └── package.json

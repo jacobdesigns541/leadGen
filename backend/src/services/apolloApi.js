@@ -1,21 +1,25 @@
 const axios = require('axios');
 
-async function enrichBusinessContact(domain, businessName) {
+function extractDomain(website) {
+  if (!website) return null;
+  return website
+    .replace(/^https?:\/\//, '')
+    .replace(/\/.*$/, '')
+    .replace(/^www\./, '');
+}
+
+async function enrichBusinessContact(website, businessName) {
   const apiKey = process.env.APOLLO_API_KEY;
-  if (!apiKey || !domain) {
-    return { ownerName: null, ownerTitle: null, ownerEmail: null };
-  }
+  if (!apiKey) throw new Error('APOLLO_API_KEY is not set in environment');
 
+  const domain = extractDomain(website);
+  if (!domain) return { ownerName: null, ownerTitle: null, ownerEmail: null };
+
+  let response;
   try {
-    // Strip protocol and path to get clean domain
-    const cleanDomain = domain
-      .replace(/^https?:\/\//, '')
-      .replace(/\/.*$/, '')
-      .replace(/^www\./, '');
-
-    const response = await axios.post(
+    response = await axios.post(
       'https://api.apollo.io/v1/organizations/enrich',
-      { domain: cleanDomain },
+      { domain },
       {
         headers: {
           'Content-Type': 'application/json',
@@ -25,39 +29,30 @@ async function enrichBusinessContact(domain, businessName) {
         timeout: 10000,
       }
     );
-
-    const org = response.data?.organization;
-    if (!org) return { ownerName: null, ownerTitle: null, ownerEmail: null };
-
-    // Look for owner/decision maker in people list
-    const people = org.organization_contacts || [];
-    const owner = people.find((p) => {
-      const title = (p.title || '').toLowerCase();
-      return (
-        title.includes('owner') ||
-        title.includes('founder') ||
-        title.includes('ceo') ||
-        title.includes('president') ||
-        title.includes('director') ||
-        title.includes('manager')
-      );
-    }) || people[0];
-
-    if (owner) {
-      return {
-        ownerName: `${owner.first_name || ''} ${owner.last_name || ''}`.trim() || null,
-        ownerTitle: owner.title || null,
-        ownerEmail: owner.email || null,
-      };
-    }
-
-    return { ownerName: null, ownerTitle: null, ownerEmail: null };
   } catch (err) {
-    if (err.response?.status !== 422 && err.response?.status !== 404) {
-      console.error('Apollo enrich error:', err.message);
+    // 404/422 mean "no organization found" — a valid empty result, not a failure
+    if (err.response?.status === 422 || err.response?.status === 404) {
+      return { ownerName: null, ownerTitle: null, ownerEmail: null };
     }
-    return { ownerName: null, ownerTitle: null, ownerEmail: null };
+    throw err;
   }
+
+  const org = response.data?.organization;
+  if (!org) return { ownerName: null, ownerTitle: null, ownerEmail: null };
+
+  const people = org.organization_contacts || [];
+  const decisionMakerTitles = ['owner', 'founder', 'ceo', 'president', 'director', 'manager'];
+  const owner =
+    people.find((p) => decisionMakerTitles.some((t) => (p.title || '').toLowerCase().includes(t))) ||
+    people[0];
+
+  if (!owner) return { ownerName: null, ownerTitle: null, ownerEmail: null };
+
+  return {
+    ownerName: `${owner.first_name || ''} ${owner.last_name || ''}`.trim() || null,
+    ownerTitle: owner.title || null,
+    ownerEmail: owner.email || null,
+  };
 }
 
 module.exports = { enrichBusinessContact };

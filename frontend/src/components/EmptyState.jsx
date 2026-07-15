@@ -37,7 +37,7 @@ export default function EmptyState({ hasSearched, error }) {
       </div>
       <div style={{ fontSize: '14px', color: 'var(--color-text-muted)', maxWidth: '400px', margin: '0 auto', lineHeight: '1.7' }}>
         Search for local businesses in the Los Angeles area. Each lead is scored
-        on digital ad presence, website quality, reviews, social media, and competitor activity.
+        on digital ad presence, broadcast media presence, website quality, reviews, and social media.
       </div>
 
       <div style={{

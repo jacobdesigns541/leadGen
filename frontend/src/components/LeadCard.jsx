@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { getTierColor, getTierBg, getTierBorder, getTierLabel, getMetricBarColor, METRIC_DEFINITIONS } from '../utils/scoring';
 
 export default function LeadCard({ lead }) {
@@ -6,9 +6,12 @@ export default function LeadCard({ lead }) {
 
   const {
     businessName, category, address, phone, website,
-    rating, reviewCount, isHispanicZip,
+    rating, reviewCount,
     ownerName, ownerTitle, ownerEmail,
     scores, tier, noGoogleAds, noMetaAds, pitchNote,
+    broadcastNotes = [], websiteSignals = null,
+    errorReasons = {},
+    hispanicFit = null,
   } = lead;
 
   const tierColor = getTierColor(tier);
@@ -44,26 +47,15 @@ export default function LeadCard({ lead }) {
         {/* Header row */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '4px' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', flexWrap: 'wrap', marginBottom: '4px' }}>
               <h3 style={{
                 fontSize: '15px', fontWeight: '700', color: 'var(--color-text)',
-                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                maxWidth: '220px',
+                lineHeight: '1.3', wordBreak: 'break-word',
               }}>
                 {businessName}
               </h3>
-              {isHispanicZip && (
-                <span style={{
-                  fontSize: '10px', fontWeight: '700', padding: '2px 8px',
-                  borderRadius: 'var(--radius-full)',
-                  background: 'var(--color-hispanic-bg)',
-                  color: 'var(--color-hispanic)',
-                  border: '1px solid var(--color-hispanic-border)',
-                  textTransform: 'uppercase', letterSpacing: '0.5px',
-                  whiteSpace: 'nowrap',
-                }}>
-                  Hispanic ZIP
-                </span>
+              {hispanicFit && hispanicFit.level !== 'none' && (
+                <HispanicFitBadge fit={hispanicFit} />
               )}
             </div>
             <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
@@ -221,15 +213,18 @@ export default function LeadCard({ lead }) {
           {expanded && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {METRIC_DEFINITIONS.map((metric) => {
-                const score = scores[metric.key] ?? 0;
-                const pct = (score / metric.maxScore) * 100;
+                const score = scores[metric.key];
+                const isUnavailable = score === null || score === undefined;
+                const reason = errorReasons[metric.key];
+                const pct = isUnavailable ? 0 : (score / metric.maxScore) * 100;
                 const barColor = getMetricBarColor(score, metric.maxScore);
+
                 return (
                   <div key={metric.key}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px', gap: '8px' }}>
                       <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{metric.label}</span>
-                      <span style={{ fontSize: '11px', fontWeight: '600', color: barColor }}>
-                        {score}/{metric.maxScore}
+                      <span style={{ fontSize: '11px', fontWeight: '600', color: barColor, textAlign: 'right' }}>
+                        {isUnavailable ? 'Unavailable' : `${score}/${metric.maxScore}`}
                       </span>
                     </div>
                     <div style={{
@@ -246,21 +241,30 @@ export default function LeadCard({ lead }) {
                         borderRadius: 'var(--radius-full)',
                         transition: 'width 0.4s ease',
                       }} />
-                      <div style={{
-                        position: 'absolute',
-                        top: '50%',
-                        left: `calc(${pct}% - 4px)`,
-                        transform: 'translateY(-50%)',
-                        width: '8px', height: '8px',
-                        borderRadius: '50%',
-                        background: barColor,
-                        boxShadow: `0 0 4px ${barColor}`,
-                      }} />
+                      {!isUnavailable && (
+                        <div style={{
+                          position: 'absolute',
+                          top: '50%',
+                          left: `calc(${pct}% - 4px)`,
+                          transform: 'translateY(-50%)',
+                          width: '8px', height: '8px',
+                          borderRadius: '50%',
+                          background: barColor,
+                          boxShadow: `0 0 4px ${barColor}`,
+                        }} />
+                      )}
                     </div>
-                    {metric.note && (
-                      <div style={{ fontSize: '10px', color: 'var(--color-text-dim)', marginTop: '3px', fontStyle: 'italic' }}>
-                        {metric.note}
+
+                    {metric.key === 'digital' && isUnavailable && reason && (
+                      <div style={{ fontSize: '11px', color: 'var(--color-text-dim)', marginTop: '5px' }}>
+                        {reason}
                       </div>
+                    )}
+                    {metric.key === 'broadcast' && (
+                      <BroadcastNotes notes={broadcastNotes} />
+                    )}
+                    {metric.key === 'website' && !isUnavailable && (
+                      <WebsiteSignalsSummary signals={websiteSignals} />
                     )}
                   </div>
                 );
@@ -285,6 +289,124 @@ export default function LeadCard({ lead }) {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+const HISPANIC_BADGE_CONFIG = {
+  strong:   { emoji: '🟢', label: 'Hispanic Market — Strong',   color: '#22c55e', bg: 'rgba(34,197,94,0.1)',   border: 'rgba(34,197,94,0.3)'   },
+  possible: { emoji: '🟡', label: 'Hispanic Market — Possible', color: '#f59e0b', bg: 'rgba(245,158,11,0.1)',  border: 'rgba(245,158,11,0.3)'  },
+  'zip-only': { emoji: '⚪', label: 'Hispanic Market — ZIP only', color: '#94a3b8', bg: 'rgba(148,163,184,0.1)', border: 'rgba(148,163,184,0.3)' },
+};
+
+function HispanicFitBadge({ fit }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const cfg = HISPANIC_BADGE_CONFIG[fit.level];
+  if (!cfg) return null;
+
+  const foundSignals = fit.signals || [];
+
+  // Close panel when clicking outside
+  useEffect(() => {
+    if (!open) return;
+    function handleClick(e) {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [open]);
+
+  return (
+    <div ref={ref} style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+      <span style={{
+        fontSize: '10px', fontWeight: '700', padding: '2px 8px',
+        borderRadius: 'var(--radius-full)',
+        background: cfg.bg,
+        color: cfg.color,
+        border: `1px solid ${cfg.border}`,
+        textTransform: 'uppercase', letterSpacing: '0.5px',
+        whiteSpace: 'nowrap',
+      }}>
+        {cfg.emoji} {cfg.label}
+      </span>
+      <button
+        onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
+        title="View detected signals"
+        style={{
+          marginLeft: '4px',
+          background: 'none',
+          color: 'var(--color-text-muted)',
+          fontSize: '12px',
+          lineHeight: 1,
+          padding: '1px 3px',
+          borderRadius: '50%',
+          border: '1px solid var(--color-border)',
+          cursor: 'pointer',
+          flexShrink: 0,
+        }}
+      >
+        ⓘ
+      </button>
+
+      {open && (
+        <div style={{
+          position: 'absolute',
+          top: 'calc(100% + 6px)',
+          left: 0,
+          zIndex: 50,
+          width: '260px',
+          background: 'var(--color-surface)',
+          border: `1px solid ${cfg.border}`,
+          borderRadius: 'var(--radius-md)',
+          padding: '10px 12px',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+        }}>
+          <div style={{ fontSize: '10px', fontWeight: '700', color: cfg.color, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '8px' }}>
+            Hispanic Market Fit · {fit.points} pt{fit.points !== 1 ? 's' : ''}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+            {foundSignals.length > 0 ? foundSignals.map((label) => (
+              <div key={label} style={{ display: 'flex', gap: '6px', alignItems: 'flex-start', fontSize: '11px' }}>
+                <span style={{ color: '#22c55e', flexShrink: 0 }}>✓</span>
+                <span style={{ color: 'var(--color-text)' }}>{label}</span>
+              </div>
+            )) : (
+              <span style={{ fontSize: '11px', color: 'var(--color-text-dim)', fontStyle: 'italic' }}>No signals recorded</span>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Notes are always visible (not collapsed further) — reps need to see this immediately.
+// When unavailable, notes already contain the specific failure reason(s) from the backend
+// (e.g. website fetch error, YouTube API error) rather than a generic placeholder.
+function BroadcastNotes({ notes }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', marginTop: '5px' }}>
+      {(notes || []).map((note, i) => (
+        <div key={i} style={{ fontSize: '11px', color: 'var(--color-text-muted)', lineHeight: '1.5' }}>
+          {note}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function WebsiteSignalsSummary({ signals }) {
+  if (!signals) return null;
+  const items = [
+    `mobile: ${signals.mobileResponsive ? 'yes' : 'no'}`,
+    `pixels: ${signals.hasPixels ? 'yes' : 'no'}`,
+    signals.lastUpdatedYear ? `last updated: ${signals.lastUpdatedYear}` : null,
+  ].filter(Boolean);
+
+  return (
+    <div style={{ fontSize: '11px', color: 'var(--color-text-dim)', marginTop: '5px' }}>
+      {items.join('  ·  ')}
     </div>
   );
 }

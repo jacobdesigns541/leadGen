@@ -27,26 +27,11 @@ function buildSearchKey(businessType, location, radiusMiles) {
   return `${businessType.toLowerCase().trim()}|${location.toLowerCase().trim()}|${radiusMiles}`;
 }
 
-async function fetchAndScoreCategory(businessType, location, radiusMiles, searchKey, limit) {
-  console.log(`[leads] Fetching "${businessType}" near "${location}" radius=${radiusMiles}mi`);
-
-  let businesses;
-  try {
-    businesses = await searchBusinesses(businessType, location, radiusMiles);
-  } catch (err) {
-    // Surface the real API error rather than swallowing it
-    console.error(`[leads] searchBusinesses failed for "${businessType}":`, err.message);
-    throw err;
-  }
-
-  if (!businesses || businesses.length === 0) {
-    console.log(`[leads] No results for "${businessType}"`);
-    return [];
-  }
-
-  console.log(`[leads] Scoring ${businesses.length} businesses for "${businessType}"`);
+async function scoreAndCache(businesses, searchKey, limit, categoryOverride) {
   const results = await Promise.allSettled(
-    businesses.map((b) => limit(() => scoreLead({ ...b, category: businessType })))
+    businesses.map((b) =>
+      limit(() => scoreLead({ ...b, category: categoryOverride || b.category || 'Business' }))
+    )
   );
 
   const scoredLeads = [];
@@ -69,17 +54,66 @@ async function fetchAndScoreCategory(businessType, location, radiusMiles, search
   return scoredLeads;
 }
 
+async function fetchAndScoreCategory(businessType, location, radiusMiles, searchKey, limit) {
+  console.log(`[leads] Fetching "${businessType}" near "${location}" radius=${radiusMiles}mi`);
+
+  let businesses;
+  try {
+    businesses = await searchBusinesses(businessType, location, radiusMiles);
+  } catch (err) {
+    // Surface the real API error rather than swallowing it
+    console.error(`[leads] searchBusinesses failed for "${businessType}":`, err.message);
+    throw err;
+  }
+
+  if (!businesses || businesses.length === 0) {
+    console.log(`[leads] No results for "${businessType}"`);
+    return [];
+  }
+
+  console.log(`[leads] Scoring ${businesses.length} businesses for "${businessType}"`);
+  return scoreAndCache(businesses, searchKey, limit, businessType);
+}
+
+// Text Search for a specific business name rather than a category — each result
+// keeps its own Places-derived category (primaryType) instead of the query string.
+async function fetchAndScoreByName(businessName, location, radiusMiles, searchKey, limit) {
+  console.log(`[leads] Fetching business name "${businessName}" near "${location}" radius=${radiusMiles}mi`);
+
+  let businesses;
+  try {
+    businesses = await searchBusinesses(businessName, location, radiusMiles);
+  } catch (err) {
+    console.error(`[leads] searchBusinesses (by name) failed for "${businessName}":`, err.message);
+    throw err;
+  }
+
+  if (!businesses || businesses.length === 0) {
+    console.log(`[leads] No results for business name "${businessName}"`);
+    return [];
+  }
+
+  console.log(`[leads] Scoring ${businesses.length} businesses for name "${businessName}"`);
+  return scoreAndCache(businesses, searchKey, limit, null);
+}
+
 // POST /api/leads/search
 router.post('/search', async (req, res) => {
   try {
-    let { businessType = 'all', location = DEFAULT_LOCATION, radiusMiles = 60 } = req.body;
+    let { businessType = 'all', businessName, location = DEFAULT_LOCATION, radiusMiles = 60 } = req.body;
 
     if (!location || !location.trim()) location = DEFAULT_LOCATION;
-    const isAll = !businessType || businessType.toLowerCase() === 'all';
+    const trimmedName = (businessName || '').trim();
+    const isNameSearch = trimmedName.length > 0;
+    const isAll = !isNameSearch && (!businessType || businessType.toLowerCase() === 'all');
 
-    console.log(`[leads] Search request: type="${businessType}" location="${location}" radius=${radiusMiles}mi`);
+    console.log(
+      `[leads] Search request: name="${trimmedName}" type="${businessType}" location="${location}" radius=${radiusMiles}mi`
+    );
 
-    const searchKey = buildSearchKey(isAll ? 'all' : businessType, location, radiusMiles);
+    const searchKey = isNameSearch
+      ? buildSearchKey(`name:${trimmedName}`, location, radiusMiles)
+      : buildSearchKey(isAll ? 'all' : businessType, location, radiusMiles);
 
     // Cache check
     const cached = getCachedLeads(searchKey);
@@ -94,7 +128,10 @@ router.post('/search', async (req, res) => {
     // shared across every category when searching "all".
     const limit = pLimit(MAX_CONCURRENT_SCORING);
 
-    if (isAll) {
+    if (isNameSearch) {
+      // A specific business name takes priority over any category selection
+      scoredLeads = await fetchAndScoreByName(trimmedName, location, radiusMiles, searchKey, limit);
+    } else if (isAll) {
       // Run all categories — per-category errors are logged but don't abort the whole search
       for (const type of ALL_BUSINESS_TYPES) {
         try {

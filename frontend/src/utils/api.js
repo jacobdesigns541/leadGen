@@ -4,16 +4,16 @@ const API_BASE = _base ? `${_base}/api` : '/api';
 // Log at module load so the browser console shows which URL is in use
 console.log('[api] API_BASE =', API_BASE);
 
-export async function searchLeads({ businessType, location, radiusMiles = 60 }) {
+export async function searchLeads({ businessType, businessName, location, radiusMiles = 60 }) {
   const url = `${API_BASE}/leads/search`;
-  console.log('[api] POST', url, { businessType, location, radiusMiles });
+  console.log('[api] POST', url, { businessType, businessName, location, radiusMiles });
 
   let response;
   try {
     response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ businessType, location, radiusMiles }),
+      body: JSON.stringify({ businessType, businessName, location, radiusMiles }),
     });
   } catch (networkErr) {
     throw new Error(`Network error — could not reach backend at ${API_BASE}. (${networkErr.message})`);

@@ -10,6 +10,7 @@ export default function LeadCard({ lead }) {
     ownerName, ownerTitle, ownerEmail,
     scores, tier, noGoogleAds, noMetaAds, pitchNote,
     broadcastNotes = [], websiteSignals = null,
+    errorReasons = {},
     hispanicFit = null,
   } = lead;
 
@@ -214,14 +215,15 @@ export default function LeadCard({ lead }) {
               {METRIC_DEFINITIONS.map((metric) => {
                 const score = scores[metric.key];
                 const isUnavailable = score === null || score === undefined;
+                const reason = errorReasons[metric.key];
                 const pct = isUnavailable ? 0 : (score / metric.maxScore) * 100;
                 const barColor = getMetricBarColor(score, metric.maxScore);
 
                 return (
                   <div key={metric.key}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px', gap: '8px' }}>
                       <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{metric.label}</span>
-                      <span style={{ fontSize: '11px', fontWeight: '600', color: barColor }}>
+                      <span style={{ fontSize: '11px', fontWeight: '600', color: barColor, textAlign: 'right' }}>
                         {isUnavailable ? 'Unavailable' : `${score}/${metric.maxScore}`}
                       </span>
                     </div>
@@ -253,8 +255,13 @@ export default function LeadCard({ lead }) {
                       )}
                     </div>
 
+                    {metric.key === 'digital' && isUnavailable && reason && (
+                      <div style={{ fontSize: '11px', color: 'var(--color-text-dim)', marginTop: '5px' }}>
+                        {reason}
+                      </div>
+                    )}
                     {metric.key === 'broadcast' && (
-                      <BroadcastNotes notes={broadcastNotes} unavailable={isUnavailable} />
+                      <BroadcastNotes notes={broadcastNotes} />
                     )}
                     {metric.key === 'website' && !isUnavailable && (
                       <WebsiteSignalsSummary signals={websiteSignals} />
@@ -375,14 +382,9 @@ function HispanicFitBadge({ fit }) {
 }
 
 // Notes are always visible (not collapsed further) — reps need to see this immediately.
-function BroadcastNotes({ notes, unavailable }) {
-  if (unavailable) {
-    return (
-      <div style={{ fontSize: '11px', color: 'var(--color-text-dim)', fontStyle: 'italic', marginTop: '5px' }}>
-        Broadcast check unavailable
-      </div>
-    );
-  }
+// When unavailable, notes already contain the specific failure reason(s) from the backend
+// (e.g. website fetch error, YouTube API error) rather than a generic placeholder.
+function BroadcastNotes({ notes }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', marginTop: '5px' }}>
       {(notes || []).map((note, i) => (

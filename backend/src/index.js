@@ -27,12 +27,22 @@ app.get('/api/debug/env', (req, res) => {
   });
 });
 
+function keyPreview(key) {
+  return key ? `${key.slice(0, 8)}...` : 'NOT SET';
+}
+
 initDb().then(() => {
   // Log env var presence at startup so Render logs show key status immediately
   console.log('[startup] API key status:', {
     GOOGLE_PLACES_API_KEY: !!process.env.GOOGLE_PLACES_API_KEY,
     SERPER_API_KEY: !!process.env.SERPER_API_KEY,
     APOLLO_API_KEY: !!process.env.APOLLO_API_KEY,
+  });
+  // Prints only the first 8 chars — enough to confirm the right key is loaded
+  // without exposing the full secret in logs
+  console.log('[startup] API key preview:', {
+    GOOGLE_PLACES_API_KEY: keyPreview(process.env.GOOGLE_PLACES_API_KEY),
+    SERPER_API_KEY: keyPreview(process.env.SERPER_API_KEY),
   });
 
   app.listen(PORT, () => {

@@ -18,17 +18,17 @@ const RADIUS_OPTIONS = [10, 25, 50, 60, 75, 100];
 
 const SORT_OPTIONS = [
   { value: 'composite', label: 'Best opportunity first' },
-  { value: 'digitalAds', label: 'No digital ads first' },
-  { value: 'website', label: 'Weakest website first' },
-  { value: 'reviews', label: 'Fewest reviews first' },
+  { value: 'digital',   label: 'No digital ads first' },
+  { value: 'broadcast', label: 'No broadcast presence first' },
+  { value: 'website',   label: 'Weakest website first' },
+  { value: 'reviews',   label: 'Fewest reviews first' },
 ];
 
 const QUICK_FILTERS = [
   { key: 'hispanicMarket', label: '🌟 Hispanic Market' },
   { key: 'noGoogleAds',    label: 'No Google Ads' },
   { key: 'noMetaAds',      label: 'No Meta Ads' },
-  { key: 'noTvAds',        label: 'No TV ads detected' },
-  { key: 'noRadioAds',     label: 'No Radio ads detected' },
+  { key: 'noBroadcast',    label: 'No Broadcast Presence' },
   { key: 'weakWebsite',    label: 'Weak Website' },
 ];
 

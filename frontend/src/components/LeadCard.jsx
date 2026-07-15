@@ -9,7 +9,7 @@ export default function LeadCard({ lead }) {
     rating, reviewCount,
     ownerName, ownerTitle, ownerEmail,
     scores, tier, noGoogleAds, noMetaAds, pitchNote,
-    tvStations = [], radioStations = [],
+    broadcastNotes = [], websiteSignals = null,
     hispanicFit = null,
   } = lead;
 
@@ -212,20 +212,17 @@ export default function LeadCard({ lead }) {
           {expanded && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {METRIC_DEFINITIONS.map((metric) => {
-                const score = scores[metric.key] ?? 0;
-                const pct = (score / metric.maxScore) * 100;
+                const score = scores[metric.key];
+                const isUnavailable = score === null || score === undefined;
+                const pct = isUnavailable ? 0 : (score / metric.maxScore) * 100;
                 const barColor = getMetricBarColor(score, metric.maxScore);
-
-                let stationTags = null;
-                if (metric.key === 'tv') stationTags = { tags: tvStations, color: '#3b82f6' };
-                if (metric.key === 'radio') stationTags = { tags: radioStations, color: '#a855f7' };
 
                 return (
                   <div key={metric.key}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
                       <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{metric.label}</span>
                       <span style={{ fontSize: '11px', fontWeight: '600', color: barColor }}>
-                        {score}/{metric.maxScore}
+                        {isUnavailable ? 'Unavailable' : `${score}/${metric.maxScore}`}
                       </span>
                     </div>
                     <div style={{
@@ -242,24 +239,25 @@ export default function LeadCard({ lead }) {
                         borderRadius: 'var(--radius-full)',
                         transition: 'width 0.4s ease',
                       }} />
-                      <div style={{
-                        position: 'absolute',
-                        top: '50%',
-                        left: `calc(${pct}% - 4px)`,
-                        transform: 'translateY(-50%)',
-                        width: '8px', height: '8px',
-                        borderRadius: '50%',
-                        background: barColor,
-                        boxShadow: `0 0 4px ${barColor}`,
-                      }} />
+                      {!isUnavailable && (
+                        <div style={{
+                          position: 'absolute',
+                          top: '50%',
+                          left: `calc(${pct}% - 4px)`,
+                          transform: 'translateY(-50%)',
+                          width: '8px', height: '8px',
+                          borderRadius: '50%',
+                          background: barColor,
+                          boxShadow: `0 0 4px ${barColor}`,
+                        }} />
+                      )}
                     </div>
-                    {metric.note && (
-                      <div style={{ fontSize: '10px', color: 'var(--color-text-dim)', marginTop: '3px', fontStyle: 'italic' }}>
-                        {metric.note}
-                      </div>
+
+                    {metric.key === 'broadcast' && (
+                      <BroadcastNotes notes={broadcastNotes} unavailable={isUnavailable} />
                     )}
-                    {stationTags && (
-                      <StationTags tags={stationTags.tags} color={stationTags.color} />
+                    {metric.key === 'website' && !isUnavailable && (
+                      <WebsiteSignalsSummary signals={websiteSignals} />
                     )}
                   </div>
                 );
@@ -289,9 +287,9 @@ export default function LeadCard({ lead }) {
 }
 
 const HISPANIC_BADGE_CONFIG = {
-  strong:   { emoji: '🟢', label: 'Hispanic — Strong',   color: '#22c55e', bg: 'rgba(34,197,94,0.1)',   border: 'rgba(34,197,94,0.3)'   },
-  possible: { emoji: '🟡', label: 'Hispanic — Possible', color: '#f59e0b', bg: 'rgba(245,158,11,0.1)',  border: 'rgba(245,158,11,0.3)'  },
-  'zip-only': { emoji: '⚪', label: 'Hispanic — ZIP only', color: '#94a3b8', bg: 'rgba(148,163,184,0.1)', border: 'rgba(148,163,184,0.3)' },
+  strong:   { emoji: '🟢', label: 'Hispanic Market — Strong',   color: '#22c55e', bg: 'rgba(34,197,94,0.1)',   border: 'rgba(34,197,94,0.3)'   },
+  possible: { emoji: '🟡', label: 'Hispanic Market — Possible', color: '#f59e0b', bg: 'rgba(245,158,11,0.1)',  border: 'rgba(245,158,11,0.3)'  },
+  'zip-only': { emoji: '⚪', label: 'Hispanic Market — ZIP only', color: '#94a3b8', bg: 'rgba(148,163,184,0.1)', border: 'rgba(148,163,184,0.3)' },
 };
 
 function HispanicFitBadge({ fit }) {
@@ -300,8 +298,7 @@ function HispanicFitBadge({ fit }) {
   const cfg = HISPANIC_BADGE_CONFIG[fit.level];
   if (!cfg) return null;
 
-  const foundSignals    = (fit.signals || []).filter((s) => s.found);
-  const notFoundSignals = (fit.signals || []).filter((s) => !s.found);
+  const foundSignals = fit.signals || [];
 
   // Close panel when clicking outside
   useEffect(() => {
@@ -362,18 +359,14 @@ function HispanicFitBadge({ fit }) {
             Hispanic Market Fit · {fit.points} pt{fit.points !== 1 ? 's' : ''}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-            {foundSignals.map((s) => (
-              <div key={s.key} style={{ display: 'flex', gap: '6px', alignItems: 'flex-start', fontSize: '11px' }}>
+            {foundSignals.length > 0 ? foundSignals.map((label) => (
+              <div key={label} style={{ display: 'flex', gap: '6px', alignItems: 'flex-start', fontSize: '11px' }}>
                 <span style={{ color: '#22c55e', flexShrink: 0 }}>✓</span>
-                <span style={{ color: 'var(--color-text)' }}>{s.label}</span>
+                <span style={{ color: 'var(--color-text)' }}>{label}</span>
               </div>
-            ))}
-            {notFoundSignals.map((s) => (
-              <div key={s.key} style={{ display: 'flex', gap: '6px', alignItems: 'flex-start', fontSize: '11px' }}>
-                <span style={{ color: 'var(--color-text-dim)', flexShrink: 0 }}>✗</span>
-                <span style={{ color: 'var(--color-text-dim)' }}>{s.label}</span>
-              </div>
-            ))}
+            )) : (
+              <span style={{ fontSize: '11px', color: 'var(--color-text-dim)', fontStyle: 'italic' }}>No signals recorded</span>
+            )}
           </div>
         </div>
       )}
@@ -381,48 +374,37 @@ function HispanicFitBadge({ fit }) {
   );
 }
 
-function StationTags({ tags, color }) {
-  const MAX = 5;
-  const visible = tags.slice(0, MAX);
-  const overflow = tags.length - MAX;
+// Notes are always visible (not collapsed further) — reps need to see this immediately.
+function BroadcastNotes({ notes, unavailable }) {
+  if (unavailable) {
+    return (
+      <div style={{ fontSize: '11px', color: 'var(--color-text-dim)', fontStyle: 'italic', marginTop: '5px' }}>
+        Broadcast check unavailable
+      </div>
+    );
+  }
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '5px' }}>
-      {visible.length > 0 ? (
-        <>
-          {visible.map((tag) => (
-            <span key={tag} style={{
-              fontSize: '10px', fontWeight: '600', padding: '2px 8px',
-              borderRadius: 'var(--radius-full)',
-              background: `${color}18`,
-              color: color,
-              border: `1px solid ${color}40`,
-            }}>
-              {tag}
-            </span>
-          ))}
-          {overflow > 0 && (
-            <span style={{
-              fontSize: '10px', fontWeight: '500', padding: '2px 8px',
-              borderRadius: 'var(--radius-full)',
-              background: 'var(--color-surface-2)',
-              color: 'var(--color-text-muted)',
-              border: '1px solid var(--color-border)',
-            }}>
-              +{overflow} more
-            </span>
-          )}
-        </>
-      ) : (
-        <span style={{
-          fontSize: '10px', fontStyle: 'italic', padding: '2px 8px',
-          borderRadius: 'var(--radius-full)',
-          background: 'var(--color-surface-2)',
-          color: 'var(--color-text-dim)',
-          border: '1px solid var(--color-border)',
-        }}>
-          None detected — verify manually
-        </span>
-      )}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', marginTop: '5px' }}>
+      {(notes || []).map((note, i) => (
+        <div key={i} style={{ fontSize: '11px', color: 'var(--color-text-muted)', lineHeight: '1.5' }}>
+          {note}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function WebsiteSignalsSummary({ signals }) {
+  if (!signals) return null;
+  const items = [
+    `mobile: ${signals.mobileResponsive ? 'yes' : 'no'}`,
+    `pixels: ${signals.hasPixels ? 'yes' : 'no'}`,
+    signals.lastUpdatedYear ? `last updated: ${signals.lastUpdatedYear}` : null,
+  ].filter(Boolean);
+
+  return (
+    <div style={{ fontSize: '11px', color: 'var(--color-text-dim)', marginTop: '5px' }}>
+      {items.join('  ·  ')}
     </div>
   );
 }

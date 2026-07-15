@@ -40,8 +40,9 @@ export function getScoreTier(composite) {
   return 'low';
 }
 
-// Returns bar color: low score = opportunity = green
+// Returns bar color: low score = opportunity = green. null/unavailable = neutral gray.
 export function getMetricBarColor(score, maxScore) {
+  if (score === null || score === undefined) return 'var(--color-text-dim)';
   const pct = score / maxScore;
   if (pct <= 0.35) return 'var(--color-hot)';
   if (pct <= 0.65) return 'var(--color-warm)';
@@ -49,10 +50,9 @@ export function getMetricBarColor(score, maxScore) {
 }
 
 export const METRIC_DEFINITIONS = [
-  { key: 'digitalAds', label: 'Digital Ad Presence', maxScore: 20 },
-  { key: 'tv',         label: 'TV Presence',          maxScore: 20, note: 'Serper signal — verify manually' },
-  { key: 'radio',      label: 'Radio Presence',       maxScore: 20, note: 'Serper signal — verify manually' },
-  { key: 'website',    label: 'Website Quality',      maxScore: 20 },
-  { key: 'reviews',    label: 'Reviews',              maxScore: 10 },
-  { key: 'social',     label: 'Social Media',         maxScore: 10 },
+  { key: 'digital',   label: 'Digital Ad Presence', maxScore: 25 },
+  { key: 'broadcast', label: 'Broadcast Media',      maxScore: 25 },
+  { key: 'website',   label: 'Website Quality',      maxScore: 25 },
+  { key: 'reviews',   label: 'Reviews',              maxScore: 15 },
+  { key: 'social',    label: 'Social Media',         maxScore: 10 },
 ];

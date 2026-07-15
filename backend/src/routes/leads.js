@@ -1,8 +1,11 @@
 const express = require('express');
+const pLimit = require('p-limit');
 const router = express.Router();
 const { searchBusinesses } = require('../services/googlePlaces');
 const { scoreLead } = require('../services/scoringEngine');
 const { getCachedLeads, saveLead, getCacheStats, rowToLead } = require('../db/database');
+
+const MAX_CONCURRENT_SCORING = 5;
 
 const ALL_BUSINESS_TYPES = [
   'Auto Dealership',
@@ -24,7 +27,7 @@ function buildSearchKey(businessType, location, radiusMiles) {
   return `${businessType.toLowerCase().trim()}|${location.toLowerCase().trim()}|${radiusMiles}`;
 }
 
-async function fetchAndScoreCategory(businessType, location, radiusMiles, searchKey) {
+async function fetchAndScoreCategory(businessType, location, radiusMiles, searchKey, limit) {
   console.log(`[leads] Fetching "${businessType}" near "${location}" radius=${radiusMiles}mi`);
 
   let businesses;
@@ -42,20 +45,16 @@ async function fetchAndScoreCategory(businessType, location, radiusMiles, search
   }
 
   console.log(`[leads] Scoring ${businesses.length} businesses for "${businessType}"`);
-  const chunkSize = 5;
-  const scoredLeads = [];
+  const results = await Promise.allSettled(
+    businesses.map((b) => limit(() => scoreLead({ ...b, category: businessType })))
+  );
 
-  for (let i = 0; i < businesses.length; i += chunkSize) {
-    const chunk = businesses.slice(i, i + chunkSize);
-    const results = await Promise.allSettled(
-      chunk.map((b) => scoreLead({ ...b, category: businessType }))
-    );
-    for (const result of results) {
-      if (result.status === 'fulfilled') {
-        scoredLeads.push(result.value);
-      } else {
-        console.error(`[leads] scoreLead error:`, result.reason?.message || result.reason);
-      }
+  const scoredLeads = [];
+  for (const result of results) {
+    if (result.status === 'fulfilled') {
+      scoredLeads.push(result.value);
+    } else {
+      console.error(`[leads] scoreLead error:`, result.reason?.message || result.reason);
     }
   }
 
@@ -91,12 +90,15 @@ router.post('/search', async (req, res) => {
     }
 
     let scoredLeads = [];
+    // One limiter per request — caps concurrent business-scoring operations at 5,
+    // shared across every category when searching "all".
+    const limit = pLimit(MAX_CONCURRENT_SCORING);
 
     if (isAll) {
       // Run all categories — per-category errors are logged but don't abort the whole search
       for (const type of ALL_BUSINESS_TYPES) {
         try {
-          const leads = await fetchAndScoreCategory(type, location, radiusMiles, searchKey);
+          const leads = await fetchAndScoreCategory(type, location, radiusMiles, searchKey, limit);
           scoredLeads.push(...leads);
         } catch (err) {
           console.error(`[leads] Skipping "${type}" due to error:`, err.message);
@@ -104,7 +106,7 @@ router.post('/search', async (req, res) => {
       }
     } else {
       // Single category — let the error propagate so the client sees it
-      scoredLeads = await fetchAndScoreCategory(businessType, location, radiusMiles, searchKey);
+      scoredLeads = await fetchAndScoreCategory(businessType, location, radiusMiles, searchKey, limit);
     }
 
     const sorted = scoredLeads.sort((a, b) => a.scores.composite - b.scores.composite);

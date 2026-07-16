@@ -24,4 +24,12 @@ async function checkDigitalAds(businessName, category, city) {
   return { hasAds: ads.length > 0, adCount: ads.length };
 }
 
-module.exports = { checkDigitalAds };
+// Low score = not advertising = underperforming = good lead signal.
+// High score = running strong ad campaigns = already well served on this channel.
+function scoreDigitalAds(adCount) {
+  if (adCount === 0) return 2; // Not running any Google Ads: 1-3 pts
+  if (adCount <= 2) return 13; // Running some ads: 12-15 pts
+  return 24; // Running strong ad campaigns: 22-25 pts
+}
+
+module.exports = { checkDigitalAds, scoreDigitalAds };

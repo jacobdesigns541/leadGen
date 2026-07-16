@@ -1,5 +1,5 @@
 const { getPlaceDetails } = require('./googlePlaces');
-const { checkDigitalAds } = require('./digitalAdsScoring');
+const { checkDigitalAds, scoreDigitalAds } = require('./digitalAdsScoring');
 const { searchCommercial, searchTvRadioSpot } = require('./youtubeApi');
 const { enrichBusinessContact } = require('./apolloApi');
 const { fetchWebsiteHtml } = require('./websiteFetch');
@@ -44,22 +44,23 @@ function extractCity(address) {
 function generatePitchNote({ digitalScore, broadcastScoreVal, broadcastNotes, websiteScoreVal, hispanicFit }) {
   const notes = [];
 
-  if (digitalScore !== null && digitalScore >= 22 && digitalScore <= 25) {
+  // Low score on a metric = underperforming on that channel = the pitch angle.
+  if (digitalScore !== null && digitalScore <= 3) {
     notes.push('No Google Ads detected');
   }
-  if (broadcastScoreVal !== null && broadcastScoreVal >= 20 && broadcastScoreVal <= 24) {
+  if (broadcastScoreVal !== null && broadcastScoreVal <= 3) {
     notes.push('No broadcast media presence detected');
   }
   if (broadcastNotes.some((n) => n.startsWith('🎬 YouTube video found'))) {
     notes.push('YouTube commercial found — confirm if currently airing');
   }
-  if (websiteScoreVal !== null && websiteScoreVal >= 20 && websiteScoreVal <= 25) {
+  if (websiteScoreVal !== null && websiteScoreVal <= 10) {
     notes.push('Weak or no web presence');
   }
   if (
     (hispanicFit.level === 'strong' || hispanicFit.level === 'possible') &&
     broadcastScoreVal !== null &&
-    broadcastScoreVal >= 20
+    broadcastScoreVal <= 3
   ) {
     notes.push('No Spanish-language broadcast presence detected for a business serving the Hispanic market');
   }
@@ -99,7 +100,7 @@ async function scoreLead(business) {
   let digitalErrorReason = null;
   const digitalUnavailable = !adsResult.ok;
   if (adsResult.ok) {
-    digitalScore = adsResult.data.hasAds ? 3 : 23;
+    digitalScore = scoreDigitalAds(adsResult.data.adCount);
   } else {
     digitalErrorReason = formatApiError('Serper', adsResult.error);
   }
@@ -122,6 +123,8 @@ async function scoreLead(business) {
   });
   const reviewsResult = scoreReviews(rating, reviewCount);
 
+  // Low score = no/inactive social presence = underperforming = good lead signal.
+  // High score = active with high engagement = already well served on this channel.
   let socialScoreVal;
   const socialNotes = [];
   if (!htmlAvailable) {
@@ -129,13 +132,16 @@ async function scoreLead(business) {
   } else {
     const socialLinks = findSocialLinks(html);
     if (socialLinks.length === 0) {
-      socialScoreVal = 10;
+      socialScoreVal = 1; // No social presence detected
     } else {
       const recentResult = await timedCall('social-recency', businessName, () => checkRecentActivity(businessName));
       if (recentResult.ok) {
-        socialScoreVal = recentResult.data ? 2 : 6;
+        const { recent, highEngagement } = recentResult.data;
+        if (recent && highEngagement) socialScoreVal = 10; // Active with high engagement
+        else if (recent) socialScoreVal = 7; // Active social media
+        else socialScoreVal = 3; // Social links found but inactive 90+ days
       } else {
-        socialScoreVal = 6;
+        socialScoreVal = 3; // Found but unknown recency — treat conservatively as inactive
         socialNotes.push('Social recency check unavailable');
       }
     }
@@ -185,8 +191,8 @@ async function scoreLead(business) {
       broadcast: broadcastResult.score === null ? websiteFetchErrorReason : null,
     },
     tier: scoreTier(composite),
-    noGoogleAds: digitalScore !== null && digitalScore >= 20,
-    noMetaAds: digitalScore !== null && digitalScore >= 20,
+    noGoogleAds: digitalScore !== null && digitalScore <= 3,
+    noMetaAds: digitalScore !== null && digitalScore <= 3,
     broadcastNotes: broadcastResult.notes,
     websiteSignals: websiteQualityResult.signals,
     socialNotes,

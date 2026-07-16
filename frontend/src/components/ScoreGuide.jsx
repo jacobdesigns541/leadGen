@@ -35,7 +35,7 @@ export default function ScoreGuide() {
         </div>
       ))}
       <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginLeft: '8px' }}>
-        Lower score = better opportunity
+        Lower score = better lead opportunity
       </span>
     </div>
   );

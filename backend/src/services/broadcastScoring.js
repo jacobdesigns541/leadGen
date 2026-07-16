@@ -1,10 +1,10 @@
 const WEBSITE_KEYWORD_GROUPS = [
-  { keywords: ['as seen on tv', 'as seen on television'], note: '📺 Website mentions TV presence', points: 4 },
-  { keywords: ['as heard on', 'hear us on', 'listen to us on'], note: '📻 Website mentions radio presence', points: 4 },
-  { keywords: ['watch our commercial', 'watch our ad', 'view our commercial'], note: '📺 Website references commercial video', points: 4 },
-  { keywords: ['tv commercial', 'television commercial', 'television ad'], note: '📺 TV commercial mentioned on website', points: 4 },
-  { keywords: ['radio commercial', 'radio ad', 'radio spot', 'on-air'], note: '📻 Radio ad mentioned on website', points: 4 },
-  { keywords: ['comercial de television', 'comercial de radio', 'en la television', 'en la radio'], note: '📺📻 Spanish-language broadcast mention found', points: 4 },
+  { keywords: ['as seen on tv', 'as seen on television'], note: '📺 Website mentions TV presence' },
+  { keywords: ['as heard on', 'hear us on', 'listen to us on'], note: '📻 Website mentions radio presence' },
+  { keywords: ['watch our commercial', 'watch our ad', 'view our commercial'], note: '📺 Website references commercial video' },
+  { keywords: ['tv commercial', 'television commercial', 'television ad'], note: '📺 TV commercial mentioned on website' },
+  { keywords: ['radio commercial', 'radio ad', 'radio spot', 'on-air'], note: '📻 Radio ad mentioned on website' },
+  { keywords: ['comercial de television', 'comercial de radio', 'en la television', 'en la radio'], note: '📺📻 Spanish-language broadcast mention found' },
 ];
 
 const NETWORKS = ['NBC', 'CBS', 'ABC', 'Fox', 'Univision', 'Telemundo', 'CNN'];
@@ -12,7 +12,6 @@ const AD_CONTEXT_WORDS = ['commercial', 'ad', 'sponsor', 'airs'];
 const AD_CONTEXT_WINDOW = 100; // chars on each side -> ~200 char window
 
 const YOUTUBE_KEYWORDS = ['commercial', 'tv spot', 'television ad', 'radio ad', 'radio spot', 'advertisement', 'comercial'];
-const YOUTUBE_CAP = 13;
 
 function hasNearbyAdContext(html, index, matchLength) {
   const windowStart = Math.max(0, index - AD_CONTEXT_WINDOW);
@@ -21,15 +20,15 @@ function hasNearbyAdContext(html, index, matchLength) {
   return AD_CONTEXT_WORDS.some((w) => windowText.includes(w));
 }
 
+// Returns one note per distinct broadcast signal detected on the website —
+// each note is one "signal found" for the count-based scoring below.
 function scoreBroadcastFromHtml(html) {
   const notes = [];
-  let points = 0;
   const htmlLower = html.toLowerCase();
 
   for (const group of WEBSITE_KEYWORD_GROUPS) {
     if (group.keywords.some((k) => htmlLower.includes(k))) {
       notes.push(group.note);
-      points += group.points;
     }
   }
 
@@ -47,7 +46,6 @@ function scoreBroadcastFromHtml(html) {
   }
   for (const network of foundNetworks) {
     notes.push(`📺 Network reference found: ${network}`);
-    points += 3;
   }
 
   // FM frequencies near ad-context keywords (fresh regex instance — 'g' regexes are stateful
@@ -60,7 +58,6 @@ function scoreBroadcastFromHtml(html) {
   }
   for (const freq of foundFm) {
     notes.push(`📻 Radio frequency reference found: ${freq}`);
-    points += 3;
   }
 
   // AM frequencies near ad-context keywords
@@ -72,7 +69,6 @@ function scoreBroadcastFromHtml(html) {
   }
   for (const freq of foundAm) {
     notes.push(`📻 AM radio reference found: ${freq}`);
-    points += 3;
   }
 
   // Embedded YouTube video in an iframe
@@ -85,20 +81,17 @@ function scoreBroadcastFromHtml(html) {
     if (videoId && !foundYtEmbeds.has(videoId)) {
       foundYtEmbeds.add(videoId);
       notes.push(`🎬 Embedded YouTube video found on website — possible commercial (https://youtube.com/watch?v=${videoId})`);
-      points += 5;
     }
   }
 
   // Embedded Vimeo video
   if (/<iframe[^>]+src=["'][^"']*vimeo\.com[^"']*["']/i.test(html)) {
     notes.push('🎬 Embedded Vimeo video found — possible commercial');
-    points += 4;
   }
 
   // Self-hosted <video> tag
   if (/<video[^>]+src=["'][^"']+["']/i.test(html)) {
     notes.push('🎬 Self-hosted video found on website — possible commercial');
-    points += 3;
   }
 
   // Image alt text or filename referencing a commercial
@@ -114,58 +107,52 @@ function scoreBroadcastFromHtml(html) {
   }
   if (imgFound) {
     notes.push('📺 Image referencing commercial found');
-    points += 2;
   }
 
-  return { points, notes };
+  return { notes };
 }
 
 function scoreBroadcastFromYoutube(videos) {
   const notes = [];
-  let points = 0;
-
   for (const video of videos) {
     const text = `${video.title} ${video.description}`.toLowerCase();
     if (YOUTUBE_KEYWORDS.some((k) => text.includes(k))) {
       notes.push(`🎬 YouTube video found: ${video.title} — https://youtube.com/watch?v=${video.videoId} — verify if active broadcast ad`);
-      points += 6;
-      // Every result already satisfies videoDuration: 'short' at the API level
-      points += 2;
     }
   }
-
-  return { points, notes };
+  return { notes };
 }
 
-function rawSignalToScore(raw) {
-  if (raw === 0) return 24;
-  if (raw <= 4) return 18;
-  if (raw <= 9) return 12;
-  if (raw <= 14) return 7;
-  return 2;
+// Low score = no/weak broadcast signals = underperforming = good lead signal.
+// High score = strong confirmed broadcast presence = already well served on this channel.
+function signalCountToScore(count) {
+  if (count === 0) return 2; // No broadcast signals detected: 1-3 pts
+  if (count <= 2) return 10; // Weak signals (1-2 found): 8-12 pts
+  if (count <= 4) return 16; // Moderate signals (3-4 found): 14-18 pts
+  return 24; // Strong broadcast presence confirmed: 22-25 pts
 }
 
 function scoreBroadcast({ html, htmlAvailable, youtubeVideos, youtubeErrorReason }) {
   if (!htmlAvailable) {
     const notes = ['Website unavailable — broadcast check incomplete'];
     if (youtubeErrorReason) notes.push(`⚠️ YouTube check unavailable — ${youtubeErrorReason}`);
-    return { score: null, notes, rawSignal: null };
+    return { score: null, notes, signalCount: null };
   }
 
   const websiteResult = scoreBroadcastFromHtml(html);
   const youtubeResult = scoreBroadcastFromYoutube(youtubeVideos || []);
-  const cappedYoutubePoints = Math.min(youtubeResult.points, YOUTUBE_CAP);
 
-  const rawSignal = websiteResult.points + cappedYoutubePoints;
-  const notes = [...websiteResult.notes, ...youtubeResult.notes];
+  const signalNotes = [...websiteResult.notes, ...youtubeResult.notes];
+  const signalCount = signalNotes.length;
 
+  const notes = [...signalNotes];
   if (youtubeErrorReason) notes.push(`⚠️ YouTube check unavailable — ${youtubeErrorReason}`);
 
   if (notes.length === 0) {
     notes.push('No broadcast signals detected — verify manually during outreach');
   }
 
-  return { score: rawSignalToScore(rawSignal), notes, rawSignal };
+  return { score: signalCountToScore(signalCount), notes, signalCount };
 }
 
 module.exports = { scoreBroadcast };

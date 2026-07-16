@@ -55,18 +55,19 @@ export default function App() {
     if (activeFilters.includes('hispanicMarket')) {
       result = result.filter((l) => l.hispanicFit?.level === 'strong' || l.hispanicFit?.level === 'possible');
     }
+    // Low score now means underperforming on that channel — filters check the low end.
     if (activeFilters.includes('noGoogleAds')) {
-      result = result.filter((l) => (l.scores?.digital ?? 0) >= 20);
+      result = result.filter((l) => (l.scores?.digital ?? 25) <= 3);
     }
     if (activeFilters.includes('noMetaAds')) {
       // No separate Meta Ads signal exists — this reuses the Serper digital-ads inference
-      result = result.filter((l) => (l.scores?.digital ?? 0) >= 20);
+      result = result.filter((l) => (l.scores?.digital ?? 25) <= 3);
     }
     if (activeFilters.includes('noBroadcast')) {
-      result = result.filter((l) => (l.scores?.broadcast ?? 0) >= 20);
+      result = result.filter((l) => (l.scores?.broadcast ?? 25) <= 3);
     }
     if (activeFilters.includes('weakWebsite')) {
-      result = result.filter((l) => (l.scores?.website ?? 0) >= 18);
+      result = result.filter((l) => (l.scores?.website ?? 25) <= 10);
     }
 
     // Sort
